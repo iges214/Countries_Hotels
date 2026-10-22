@@ -3,16 +3,17 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using NoName_Hotel.api.Constants;
-using NoName_Hotel.api.Contracts;
-using NoName_Hotel.api.Contracts.AuthContracts;
-using NoName_Hotel.api.Data;
-using NoName_Hotel.api.Entities.Models;
+using NoName_Hotel.Common.Constants;
 using NoName_Hotel.api.Handlers;
-using NoName_Hotel.api.Mappers;
-using NoName_Hotel.api.Services;
-using NoName_Hotel.api.Services.AuthServices;
+using NoName_Hotel.Application.Mappers;
+using NoName_Hotel.Application.Services;
 using System.Text;
+using NoName_Hotel.Domain.Data;
+using NoName_Hotel.Domain.Entities.Models;
+using NoName_Hotel.Application.Contracts;
+using NoName_Hotel.Application.Contracts.AuthContracts;
+using NoName_Hotel.Application.Services.AuthServices;
+using NoName_Hotel.Common.JWT;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -30,10 +31,24 @@ builder.Services.AddIdentityApiEndpoints<ApplicationUser>()
     .AddRoles<IdentityRole>()
 .AddEntityFrameworkStores<NoName_hotel_DbContext>();
 
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
+
+var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>() ?? new JwtSettings();
+
+if (string.IsNullOrWhiteSpace(jwtSettings.key))
+{
+    throw new InvalidOperationException("Jwt key is not configured");
+}
+
+
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
 })
     .AddJwtBearer(options =>
     {
@@ -43,9 +58,9 @@ builder.Services.AddAuthentication(options =>
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["jwtSettings.Issuer"],
-            ValidAudience = builder.Configuration["jwtSettings.Audeince"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["jwtSettings.key"] ?? string.Empty)),
+            ValidIssuer = jwtSettings.Issuer,
+            ValidAudience = jwtSettings.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.key)),
             ClockSkew = TimeSpan.Zero //default is 5min
         };
     })
@@ -61,11 +76,15 @@ builder.Services.AddScoped<ICountriesService, CountriesService>();
 builder.Services.AddScoped<IHotelService, HotelService>();
 builder.Services.AddScoped<IUserServices, UserServices>();
 builder.Services.AddScoped<IApiKeyValidatorService, ApiKeyValidatorService>();
+builder.Services.AddScoped<IBookingService, BookingService>();
 
+
+//builder.Services.AddAutoMapper(cfg => { }, Assembly.GetExecutingAssembly());
 builder.Services.AddAutoMapper(cfg =>
 {
     cfg.AddProfile<HotelMappingProfile>();
     cfg.AddProfile<CountryMappingProfile>();
+    cfg.AddProfile<BookingMappingProfile>();
 });
 
 builder.Services.AddControllers()

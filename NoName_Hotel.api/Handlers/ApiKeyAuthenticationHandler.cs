@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
-using NoName_Hotel.api.Constants;
-using NoName_Hotel.api.Services.AuthServices;
+using NoName_Hotel.Application.Contracts.AuthContracts;
+using NoName_Hotel.Common.Constants;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 
@@ -11,7 +11,7 @@ namespace NoName_Hotel.api.Handlers
         IOptionsMonitor<AuthenticationSchemeOptions> options,
         ILoggerFactory logger,
         UrlEncoder encoder,
-        ApiKeyValidatorService apiKeyValidatorService
+        IApiKeyValidatorService apiKeyValidatorService
         ) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
     {
         protected override async Task<AuthenticateResult> HandleAuthenticateAsync()

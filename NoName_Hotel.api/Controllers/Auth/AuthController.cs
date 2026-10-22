@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using NoName_Hotel.api.Contracts.AuthContracts;
-using NoName_Hotel.api.DTO.AuthDto;
+using NoName_Hotel.Application.Contracts.AuthContracts;
+using NoName_Hotel.Application.DTO.AuthDto;
 
 namespace NoName_Hotel.api.Controllers.Auth
 {

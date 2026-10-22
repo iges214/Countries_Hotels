@@ -1,23 +1,42 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using NoName_Hotel.api.Contracts;
-using NoName_Hotel.api.DTO.HotelDto;
-using NoName_Hotel.api.Entities.Models;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using NoName_Hotel.Application.Contracts;
+using NoName_Hotel.Application.DTO.HotelDto;
+using NoName_Hotel.Application.Services;
+using NoName_Hotel.Common.Constants;
+using NoName_Hotel.Common.QuerableXtensions.Filtering;
+using NoName_Hotel.Common.QuerableXtensions.Paging;
+using static NuGet.Packaging.PackagingConstants;
 
 namespace NoName_Hotel.api.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class HotelCountroller(IHotelService hotelService) : BaseApiController
     {
+        //[HttpGet]
+        //public async Task<ActionResult<IEnumerable<GetHotelDto>>> GetAllHotels()
+        //{
+        //    //select * from hotels, left join countries on Hotels CountryId = countries.countryId
+        //    var result = await hotelService.GetHotelsAsync();
+        //    return ToActionResult(result);
+        //}
+
+
+        // GET: api/Hotels
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<GetHotelDto>>> GetAllHotels()
+        public async Task<ActionResult<PageResult<GetHotelDto>>> GetHotels(
+            [FromQuery] PaginationParameters paginationParameters, 
+            [FromQuery] HotelFilterParameters hotelFilterParameters)
         {
-            //select * from hotels, left join countries on Hotels CountryId = countries.countryId
-            var hotels = await hotelService.GetHotelsAsync();
-            return ToActionResult(hotels);
+            var result = await hotelService.GetHotelsAsync(paginationParameters, hotelFilterParameters);
+            return ToActionResult(result);
         }
-        
+
+
+
+
         [HttpGet("{id}")]
         public async Task<ActionResult<GetHotelDto>> GetHotel(int id)
         {
@@ -27,6 +46,7 @@ namespace NoName_Hotel.api.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = RoleNames.Administrator)]
         public async Task<IActionResult> UpdateHotel(int id, UpdateHotelDto updateHotel)
         {
             if (id != updateHotel.Id)
@@ -39,6 +59,7 @@ namespace NoName_Hotel.api.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = RoleNames.Administrator)]
         public async Task<ActionResult<GetHotelDto>> PostHotel(CreateHotelDto createHotel)
         {
             var hotel = await hotelService.CreateHotelAsync(createHotel);
@@ -49,6 +70,7 @@ namespace NoName_Hotel.api.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = RoleNames.Administrator)]
         public async Task<IActionResult> DeleteHotel(int id)
         {
             var result = await hotelService.DeleteHotelAsync(id);
