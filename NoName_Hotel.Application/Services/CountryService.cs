@@ -132,7 +132,7 @@ namespace NoName_Hotel.Application.Services
                 .AnyAsync(c => c.Name.ToLower().Trim() == name.ToLower().Trim());
         }
 
-        public async Task<Result<GetCountryHotelsDto>> getCountryHotelAsync(int countryId, PaginationParameters paginationParameters, CountryFilterParameters countryFilterParameters)
+        public async Task<Result<GetCountryHotelsDto>> GetCountryHotelsAsync(int countryId, PaginationParameters paginationParameters, CountryFilterParameters countryFilterParameters)
         {
             var exist = await CountryExistsAsync(countryId);
 
