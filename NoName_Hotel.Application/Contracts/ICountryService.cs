@@ -1,12 +1,8 @@
-﻿using AutoMapper;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.JsonPatch;
 using NoName_Hotel.Application.DTO.CountryDto;
-using NoName_Hotel.Application.DTO.HotelDto;
-using NoName_Hotel.Common.Constants;
 using NoName_Hotel.Common.QuerableXtensions.Filtering;
 using NoName_Hotel.Common.QuerableXtensions.Paging;
 using NoName_Hotel.Common.Results;
-using NoName_Hotel.Domain.Entities.Models;
 
 namespace NoName_Hotel.Application.Contracts
 {
@@ -20,8 +16,9 @@ namespace NoName_Hotel.Application.Contracts
         Task<Result<GetCountryDto>> GetCountryAsync(int id);
         Task<Result> UpdateCountryAsync(int id, UpdateCountryDto updateDto);
         Task<Result<GetCountryHotelsDto>> GetCountryHotelsAsync(int countryId, PaginationParameters paginationParameters, CountryFilterParameters countryFilterParameters);
+        Task<Result> PatchCountryAsycn(int Id, JsonPatchDocument<UpdateCountryDto> patcDoc);
     }
 
 
 
-    }
+}

@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using NoName_Hotel.Application.Contracts;
 using NoName_Hotel.Application.DTO.CountryDto;
@@ -47,6 +48,22 @@ namespace NoName_Hotel.api.Controllers
         {
             var result = await countryService.UpdateCountryAsync(id, updateCountry);
 
+
+            return ToActionResult(result);
+        }
+
+        [HttpPut("{id}")]
+        [Authorize(Roles = RoleNames.Administrator)]
+        public async Task<IActionResult> PatchCountry(int id, [FromBody] JsonPatchDocument<UpdateCountryDto> patchDoc)
+        {
+            if(patchDoc == null)
+            {
+                return BadRequest("patch document is required");
+            }
+
+
+                
+            var result = await countryService.PatchCountryAsycn(id, patchDoc);
 
             return ToActionResult(result);
         }

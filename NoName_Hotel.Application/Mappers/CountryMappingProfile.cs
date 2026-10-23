@@ -13,6 +13,10 @@ namespace NoName_Hotel.Application.Mappers
             CreateMap<Country, GetCountriesDto>()
                 .ForMember(d => d.Id, opt => opt.MapFrom(s => s.CountryId));
             CreateMap<CreateCountryDto, Country>();
+            CreateMap<UpdateCountryDto, Country>()
+                .ForMember(a => a.CountryId, opt => opt.MapFrom(b => b.Id))
+                .ReverseMap()
+                .ForMember(a => a.Id, opt => opt.MapFrom(b => b.CountryId));
         }
     }
 }

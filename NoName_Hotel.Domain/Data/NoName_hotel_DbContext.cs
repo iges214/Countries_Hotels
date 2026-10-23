@@ -21,6 +21,27 @@ namespace NoName_Hotel.Domain.Data
             base.OnModelCreating(builder);
             builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
 
+            builder.Entity<Country>()
+                .HasIndex(e => e.Name)
+                .HasDatabaseName("IX_Countries_Name");
+
+
+            builder.Entity<Country>()
+               .HasIndex(e => e.ShortName)
+               .HasDatabaseName("IX_Countries_ShortName");
+
+            builder.Entity<Hotel>()
+               .HasIndex(e => e.Name)
+               .HasDatabaseName("IX_Hotels_Name");
+
+            builder.Entity<Hotel>()
+               .HasIndex(e => e.CountryId)
+               .HasDatabaseName("IX_Hotels_CountryId");
+
+            builder.Entity<Hotel>()
+               .HasIndex(e => new {e.CountryId, e.Rating})
+               .HasDatabaseName("IX_Hotels_CountryId_Rating");
+
 
         }
 
