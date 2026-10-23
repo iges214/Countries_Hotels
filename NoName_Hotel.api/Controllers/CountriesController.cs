@@ -52,7 +52,7 @@ namespace NoName_Hotel.api.Controllers
             return ToActionResult(result);
         }
 
-        [HttpPut("{id}")]
+        [HttpPatch("{id}")]
         [Authorize(Roles = RoleNames.Administrator)]
         public async Task<IActionResult> PatchCountry(int id, [FromBody] JsonPatchDocument<UpdateCountryDto> patchDoc)
         {
