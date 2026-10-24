@@ -23,7 +23,8 @@ namespace NoName_Hotel.api.Controllers
                 ErrorCodes.Validation => BadRequest(e.Description),
                 ErrorCodes.BadRequest => BadRequest(e.Description),
                 ErrorCodes.Conflict => Conflict(e.Description),
-                ErrorCodes.Forbid => Forbid(e.Description),
+                ErrorCodes.Forbid => StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
+                    { Status = StatusCodes.Status403Forbidden, Title = "Forbidden", Detail = e.Description }),
                 _ => Problem(detail: string.Join("; ", errors.Select(x => x.Description)), title: e.Code)
             };
         }

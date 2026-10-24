@@ -1,6 +1,8 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
+using NoName_Hotel.api.Filters;
 using NoName_Hotel.Application.Contracts;
 using NoName_Hotel.Application.DTO.CountryDto;
 using NoName_Hotel.Common.Constants;
@@ -10,12 +12,15 @@ using NoName_Hotel.Common.QuerableXtensions.Paging;
 namespace NoName_Hotel.api.Controllers
 {
     [Route("api/[controller]")]
+    [Route("api/v1/countries")]
     [ApiController]
     [Authorize]
+    [ServiceFilter(typeof(CatalogCacheInvalidationFilter))]
+    [OutputCache(PolicyName = CacheConstants.AuthenticatedUserCachingPolicy)]
     public class CountriesController(ICountriesService countryService) : BaseApiController
     {
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<GetCountriesDto>>> GetCountries(CountryFilterParameters countryFilterParameters)
+        public async Task<ActionResult<IEnumerable<GetCountriesDto>>> GetCountries([FromQuery] CountryFilterParameters countryFilterParameters)
         {
             var countries = await countryService.GetCountriesAsync(countryFilterParameters);
 

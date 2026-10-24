@@ -20,9 +20,16 @@ namespace NoName_Hotel.Domain.Data
         {
             base.OnModelCreating(builder);
             builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+            builder.Entity<Country>().Property(c => c.Name).HasMaxLength(100);
+            builder.Entity<Country>().Property(c => c.ShortName).HasMaxLength(10);
+            builder.Entity<Hotel>().Property(h => h.Name).HasMaxLength(100);
+            builder.Entity<Hotel>().Property(h => h.Address).HasMaxLength(150);
+            builder.Entity<ApiKey>().HasIndex(k => k.Key).IsUnique();
+            builder.Entity<Hotel>().HasIndex(h => new { h.CountryId, h.Name }).IsUnique();
 
             builder.Entity<Country>()
                 .HasIndex(e => e.Name)
+                .IsUnique()
                 .HasDatabaseName("IX_Countries_Name");
 
 

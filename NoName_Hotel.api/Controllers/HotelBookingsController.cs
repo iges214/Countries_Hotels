@@ -69,9 +69,9 @@ namespace NoName_Hotel.api.Controllers
 
         [HttpPut("{bookingId:int}/admin/confirm")]
         [HotelOrSystemAdmin]
-        public async Task<IActionResult> AdminConfrimBooking([FromRoute] int hotelId, [FromRoute] int bbookingId)
+        public async Task<IActionResult> AdminConfirmBooking([FromRoute] int hotelId, [FromRoute] int bookingId)
         {
-            var result = await bookingService.AdminConfirmBookingAsync(hotelId, bbookingId);
+            var result = await bookingService.AdminConfirmBookingAsync(hotelId, bookingId);
             return ToActionResult(result);
         }
 

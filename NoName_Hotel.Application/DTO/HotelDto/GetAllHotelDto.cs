@@ -5,6 +5,8 @@
         string Name,
         String Address,
         double Rating,
-        int CountryId);
+        int CountryId,
+        decimal PerNightRate,
+        int TotalRooms);
 }
 

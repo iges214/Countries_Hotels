@@ -14,6 +14,7 @@ using NoName_Hotel.Application.Contracts;
 using NoName_Hotel.Application.Contracts.AuthContracts;
 using NoName_Hotel.Application.Services.AuthServices;
 using NoName_Hotel.Common.JWT;
+using NoName_Hotel.api.Controllers.CachePolicies;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -118,6 +119,17 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+//builder.Services.AddMemoryCache();    IN-MEMORY CACHING e.g RAM
+builder.Services.AddOutputCache(options =>
+{
+    options.AddPolicy(CacheConstants.AuthenticatedUserCachingPolicy, builder => {
+        builder.AddPolicy<AuthenticatedUserCachingPolicy>()
+        .SetCacheKeyPrefix(CacheConstants.AuthenticatedUserCachingPolicy)
+        .Expire(TimeSpan.FromSeconds(CacheConstants.MediumDuration))
+            .Tag(CacheConstants.CatalogTag);
+}, excludeDefaultPolicy: true);
+});
+
 var app = builder.Build();
 app.MapGroup("api/default").MapIdentityApi<ApplicationUser>();
 
@@ -131,6 +143,8 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseAuthorization();
+
+app.UseOutputCache();
 
 app.MapControllers();
 

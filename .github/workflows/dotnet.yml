@@ -1,0 +1,14 @@
+name: Build and test
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet restore NoName_Hotel.sol.sln
+      - run: dotnet test NoName_Hotel.sol.sln --configuration Release --no-restore

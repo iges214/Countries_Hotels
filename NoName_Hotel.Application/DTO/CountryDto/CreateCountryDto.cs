@@ -5,9 +5,9 @@ namespace NoName_Hotel.Application.DTO.CountryDto
     {
         [Required]
         [MaxLength(100)]
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
 
-        [MaxLength(10)]
+        [Required, MaxLength(10)]
         public required string ShortName {  get; set; }
     }
 }

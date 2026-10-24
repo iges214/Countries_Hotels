@@ -1,176 +1,110 @@
-﻿using AutoMapper;
+using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using Microsoft.EntityFrameworkCore;
-using NoName_Hotel.Domain.Data;
 using NoName_Hotel.Application.Contracts;
 using NoName_Hotel.Application.DTO.HotelDto;
-using NoName_Hotel.Common.Results;
+using NoName_Hotel.Application.Validation;
 using NoName_Hotel.Common.Constants;
-using NoName_Hotel.Domain.Entities.Models;
-using NoName_Hotel.Common.QuerableXtensions.Paging;
-using NoName_Hotel.Common.QuerableXtensions.Filtering;
 using NoName_Hotel.Common.QuerableXtensions.Extensions;
-
+using NoName_Hotel.Common.QuerableXtensions.Filtering;
+using NoName_Hotel.Common.QuerableXtensions.Paging;
+using NoName_Hotel.Common.Results;
+using NoName_Hotel.Domain.Data;
+using NoName_Hotel.Domain.Entities.Models;
 namespace NoName_Hotel.Application.Services;
-
-    public class HotelService(NoName_hotel_DbContext context,
-        ICountriesService countriesService,
-        IMapper mapper) : IHotelService
+public class HotelService(NoName_hotel_DbContext context, ICountriesService countriesService, IMapper mapper) : IHotelService
+{
+    public async Task<Result<PageResult<GetHotelDto>>> GetHotelsAsync(PaginationParameters page, HotelFilterParameters f)
     {
-        public async Task<Result<PageResult<GetHotelDto>>> GetHotelsAsync(
-            PaginationParameters paginationParameters, HotelFilterParameters hotelFilterParameters)
-        {
-
         var query = context.Hotels.AsQueryable();
-        if (hotelFilterParameters.CountryId.HasValue)
+        if (f.CountryId.HasValue) query = query.Where(h => h.CountryId == f.CountryId);
+        if (f.MinRating.HasValue) query = query.Where(h => h.Rating >= f.MinRating);
+        if (f.MaxRating.HasValue) query = query.Where(h => h.Rating <= f.MaxRating);
+        if (f.MinPrice.HasValue) query = query.Where(h => h.PerNightRate >= f.MinPrice);
+        if (f.MaxPrice.HasValue) query = query.Where(h => h.PerNightRate <= f.MaxPrice);
+        if (!string.IsNullOrWhiteSpace(f.Location))
         {
-            query = query.Where(a => a.CountryId == hotelFilterParameters.CountryId);
+            var location = f.Location.Trim();
+            query = query.Where(h => EF.Functions.Like(h.Address, $"%{location}%"));
         }
-
-        if (hotelFilterParameters.MinRating.HasValue)
+        if (!string.IsNullOrWhiteSpace(f.Search))
         {
-            query = query.Where(a => a.Rating >= hotelFilterParameters.MinRating);
+            var term = f.Search.Trim();
+            query = query.Where(h => EF.Functions.Like(h.Name, $"%{term}%") || EF.Functions.Like(h.Address, $"%{term}%"));
         }
-
-        if (hotelFilterParameters.MaxRating.HasValue)
+        IOrderedQueryable<Hotel> sorted = f.SortBy?.Trim().ToLowerInvariant() switch
         {
-            query = query.Where(a => a.Rating <= hotelFilterParameters.MaxRating);
-        }
-
-        if (hotelFilterParameters.MinPrice.HasValue)
-        {
-            query = query.Where(a => a.PerNightRate >= hotelFilterParameters.MinPrice);
-        }
-
-        if (hotelFilterParameters.MaxPrice.HasValue)
-        {
-            query = query.Where(a => a.PerNightRate <= hotelFilterParameters.MaxPrice);
-        }
-
-        if (!string.IsNullOrWhiteSpace(hotelFilterParameters.Location))
-        {
-            var location = hotelFilterParameters.Location.Trim();
-            query = query.Where(a => EF.Functions.Like(a.Address, $"%{location}%"));
-        }
-
-        //search params
-        if (!string.IsNullOrWhiteSpace(hotelFilterParameters.Location))
-        {
-            var search = hotelFilterParameters.Search.Trim();
-            query = query.Where(a => EF.Functions.Like(a.Name, $"%{search}%") ||
-                                 EF.Functions.Like(a.Address, $"%{search}%"));
-        }
-
-        query = hotelFilterParameters.SortBy?.ToLower() switch
-        {
-            "name" => hotelFilterParameters.SortDescending ?
-                      query.OrderByDescending(a => a.Name) :
-                      query.OrderBy(b => b.Name),
-            "rating" => hotelFilterParameters.SortDescending ?
-                      query.OrderByDescending(a => a.Rating) :
-                      query.OrderBy(b => b.Rating),
-            "price" => hotelFilterParameters.SortDescending ?
-                     query.OrderByDescending(a => a.PerNightRate) :
-                     query.OrderBy(a => a.PerNightRate),
-            _ => query.OrderBy(a => a.Name)
+            "rating" => f.SortDescending ? query.OrderByDescending(h => h.Rating) : query.OrderBy(h => h.Rating),
+            "price" => f.SortDescending ? query.OrderByDescending(h => h.PerNightRate) : query.OrderBy(h => h.PerNightRate),
+            _ => f.SortDescending ? query.OrderByDescending(h => h.Name) : query.OrderBy(h => h.Name)
         };
-
-        var hotels = await query
-            .Include(q => q.Country)
-            .ProjectTo<GetHotelDto>(mapper.ConfigurationProvider)
-            .ToPageResultAsync(paginationParameters);
-
-        return Result<PageResult<GetHotelDto>>.Success(hotels);
+        return Result<PageResult<GetHotelDto>>.Success(await sorted.ThenBy(h => h.Id)
+            .ProjectTo<GetHotelDto>(mapper.ConfigurationProvider).ToPageResultAsync(page));
     }
-
-        public async Task<Result<GetHotelDto>> GetHotelAsync(int id)
-        {
-            var hotel = await context.Hotels
-                .Where(h => h.Id == id)
-                .ProjectTo<GetHotelDto>(mapper.ConfigurationProvider)
-                .FirstOrDefaultAsync();
-
-            if (hotel is null)
-            {
-                return Result<GetHotelDto>.Failure(new Error(ErrorCodes.NotFound, $"Hotel '{id}' was not found."));
-            }
-
-            return Result<GetHotelDto>.Success(hotel);
-        }
-
-        public async Task<Result<GetHotelDto>> CreateHotelAsync(CreateHotelDto hotelDto)
-        {
-            var countryExists = await countriesService.CountryExistsAsync(hotelDto.CountryId);
-            if (!countryExists)
-            {
-                return Result<GetHotelDto>.Failure(new Error(ErrorCodes.NotFound, $"Country '{hotelDto.CountryId}' was not found."));
-            }
-
-            var duplicate = await HotelExistsAsync(hotelDto.Name, hotelDto.CountryId);
-            if (duplicate)
-            {
-                return Result<GetHotelDto>.Failure(new Error(ErrorCodes.Conflict, $"Hotel '{hotelDto.Name}' already exists in the selected country."));
-            }
-
-            var hotel = mapper.Map<Hotel>(hotelDto);
-            context.Hotels.Add(hotel);
-            await context.SaveChangesAsync();
-
-            var dto = mapper.Map<GetHotelDto>(hotel);
-
-            return Result<GetHotelDto>.Success(dto);
-        }
-
-        public async Task<Result> UpdateHotelAsync(int id, UpdateHotelDto updateDto)
-        {
-            if (id != updateDto.Id)
-            {
-                return Result.BadRequest(new Error(ErrorCodes.Validation, "Id route value does not match payload Id."));
-            }
-
-            var hotel = await context.Hotels.FindAsync(id);
-            if (hotel == null)
-            {
-                return Result.NotFound(new Error(ErrorCodes.NotFound, $"Hotel '{id}' was not found."));
-            }
-
-            var countryExists = await countriesService.CountryExistsAsync(updateDto.CountryId);
-            if (!countryExists)
-            {
-                return Result.NotFound(new Error(ErrorCodes.NotFound, $"Country '{updateDto.CountryId}' was not found."));
-            }
-
-            mapper.Map(updateDto, hotel);
-
-            context.Hotels.Update(hotel);
-            await context.SaveChangesAsync();
-
-            return Result.Success();
-        }
-
-        public async Task<Result> DeleteHotelAsync(int id)
-        {
-            var affected = await context.Hotels
-                .Where(q => q.Id == id)
-                .ExecuteDeleteAsync();
-
-            if (affected == 0)
-            {
-                return Result.NotFound(new Error(ErrorCodes.NotFound, $"Hotel '{id}' was not found."));
-            }
-
-            return Result.Success();
-        }
-
-        public async Task<bool> HotelExistsAsync(int id)
-        {
-            return await context.Hotels.AnyAsync(e => e.Id == id);
-        }
-
-        public async Task<bool> HotelExistsAsync(string name, int countryId)
-        {
-        var normalizedName = name.ToLower().Trim();
-            return await context.Hotels
-                .AnyAsync(e => e.Name.ToLower().Trim() == normalizedName && e.CountryId == countryId);
-        }
+    public async Task<Result<GetHotelDto>> GetHotelAsync(int id)
+    {
+        var dto = await context.Hotels.Where(h => h.Id == id)
+            .ProjectTo<GetHotelDto>(mapper.ConfigurationProvider).FirstOrDefaultAsync();
+        return dto is null ? Result<GetHotelDto>.Failure(new Error(ErrorCodes.NotFound, "Hotel not found."))
+            : Result<GetHotelDto>.Success(dto);
     }
+    public async Task<Result<GetHotelDto>> CreateHotelAsync(CreateHotelDto dto)
+    {
+        var errors = DtoValidation.Errors(dto);
+        if (errors.Length > 0) return Result<GetHotelDto>.BadRequest(errors);
+        var country = await context.Countries.FirstOrDefaultAsync(c => c.CountryId == dto.CountryId);
+        if (country is null) return Result<GetHotelDto>.Failure(new Error(ErrorCodes.NotFound, "Country not found."));
+        if (await HotelExistsAsync(dto.Name, dto.CountryId))
+            return Result<GetHotelDto>.Failure(new Error(ErrorCodes.Conflict, "Hotel name already exists in this country."));
+        var hotel = mapper.Map<Hotel>(dto);
+        hotel.Name = hotel.Name.Trim();
+        hotel.Country = country;
+        // The country was read without tracking; attach it rather than inserting it again with the hotel.
+        context.Attach(country);
+        context.Hotels.Add(hotel);
+        await context.SaveChangesAsync();
+        return Result<GetHotelDto>.Success(mapper.Map<GetHotelDto>(hotel));
+    }
+    public async Task<Result> UpdateHotelAsync(int id, UpdateHotelDto dto)
+    {
+        if (id != dto.Id) return Result.BadRequest(new Error(ErrorCodes.Validation, "Id route value does not match payload Id."));
+        var errors = DtoValidation.Errors(dto);
+        if (errors.Length > 0) return Result.BadRequest(errors);
+        return await ReservationTransactions.RunAsync(context, async () =>
+        {
+            var hotel = await ReservationTransactions.LockHotelAsync(context, id);
+            if (hotel is null) return Result.NotFound(new Error(ErrorCodes.NotFound, "Hotel not found."));
+            if (!await countriesService.CountryExistsAsync(dto.CountryId))
+                return Result.NotFound(new Error(ErrorCodes.NotFound, "Country not found."));
+            var name = dto.Name.Trim().ToLower();
+            if (await context.Hotels.AnyAsync(h => h.Id != id && h.CountryId == dto.CountryId && h.Name.ToLower() == name))
+                return Result.Failure(new Error(ErrorCodes.Conflict, "Hotel name already exists in this country."));
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var bookings = await context.Bookings.Where(b => b.HotelId == id &&
+                b.Status != NoName_Hotel.Common.Enum.BookingStatus.Cancelled && b.CheckOut > today).ToListAsync();
+            var lastDay = bookings.Count == 0 ? today.AddDays(1) : bookings.Max(b => b.CheckOut);
+            if (!BookingAvailability.HasCapacity(dto.TotalRooms, 0, today, lastDay, bookings))
+                return Result.Failure(new Error(ErrorCodes.Conflict, "Room count cannot be reduced below existing reservations."));
+            mapper.Map(dto, hotel);
+            hotel.Name = hotel.Name.Trim();
+            await context.SaveChangesAsync();
+            return Result.Success();
+        });
+    }
+    public Task<Result> DeleteHotelAsync(int id) => ReservationTransactions.RunAsync(context, async () =>
+    {
+        var hotel = await ReservationTransactions.LockHotelAsync(context, id);
+        if (hotel is null) return Result.NotFound(new Error(ErrorCodes.NotFound, "Hotel not found."));
+        if (await context.Bookings.AnyAsync(b => b.HotelId == id) || await context.HotelAdmins.AnyAsync(a => a.HotelId == id))
+            return Result.Failure(new Error(ErrorCodes.Conflict, "A hotel with bookings or assigned administrators cannot be deleted."));
+        context.Hotels.Remove(hotel);
+        await context.SaveChangesAsync();
+        return Result.Success();
+    });
+    public Task<bool> HotelExistsAsync(int id) => context.Hotels.AnyAsync(h => h.Id == id);
+    public Task<bool> HotelExistsAsync(string name, int countryId)
+    {
+        var normalized = name.Trim().ToLower();
+        return context.Hotels.AnyAsync(h => h.CountryId == countryId && h.Name.ToLower() == normalized);
+    }
+}

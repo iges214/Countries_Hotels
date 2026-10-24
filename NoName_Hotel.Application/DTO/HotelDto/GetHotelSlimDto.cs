@@ -5,6 +5,8 @@
         int Id,
         string Name,
         string Address,
-        Double Rating
+        Double Rating,
+        decimal PerNightRate,
+        int TotalRooms
     );
 }

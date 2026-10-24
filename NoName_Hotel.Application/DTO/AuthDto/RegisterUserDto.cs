@@ -10,10 +10,10 @@ namespace NoName_Hotel.Application.DTO.AuthDto
         [Required, MinLength(6)]
         public string Password { get; set; } = string.Empty;
 
-        [Required, MinLength(100)]
+        [Required, MaxLength(100)]
         public string FirstName { get; set; } = string.Empty;
 
-        [Required, MinLength(100)]
+        [Required, MaxLength(100)]
         public string LastName { get; set; } = string.Empty;
 
         public string Role { get; set; } = "User";

@@ -11,6 +11,7 @@
         decimal TotalPrice,
         string Status,
         DateTime CreateAt,
-        DateTime? UpdateAt
+        DateTime? UpdateAt,
+        int Rooms
     );
 }

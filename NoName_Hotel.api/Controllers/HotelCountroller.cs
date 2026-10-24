@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using NoName_Hotel.Application.Contracts;
 using NoName_Hotel.Application.DTO.HotelDto;
 using NoName_Hotel.Application.Services;
+using NoName_Hotel.api.Filters;
 using NoName_Hotel.Common.Constants;
 using NoName_Hotel.Common.QuerableXtensions.Filtering;
 using NoName_Hotel.Common.QuerableXtensions.Paging;
@@ -11,6 +12,9 @@ using static NuGet.Packaging.PackagingConstants;
 namespace NoName_Hotel.api.Controllers
 {
     [Route("api/[controller]")]
+    [Route("api/hotels")]
+    [Route("api/v1/hotels")]
+    [ServiceFilter(typeof(CatalogCacheInvalidationFilter))]
     [ApiController]
     [Authorize]
     public class HotelCountroller(IHotelService hotelService) : BaseApiController

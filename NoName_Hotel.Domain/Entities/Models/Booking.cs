@@ -16,6 +16,9 @@ namespace NoName_Hotel.Domain.Entities.Models
         public DateOnly CheckOut { get; set; }
 
         public int Guest { get; set; }
+        public int Rooms { get; set; } = 1;
+
+        public byte[] RowVersion { get; set; } = [];
 
         public decimal Totalprice { get; set; }
 

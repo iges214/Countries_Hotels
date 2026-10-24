@@ -1,34 +1,18 @@
-﻿using AutoMapper;
+using AutoMapper;
 using NoName_Hotel.Application.DTO.BookingsDto;
 using NoName_Hotel.Domain.Entities.Models;
-
-namespace NoName_Hotel.Application.Mappers
+namespace NoName_Hotel.Application.Mappers;
+public class BookingMappingProfile : Profile
 {
-    public class BookingMappingProfile : Profile
+    public BookingMappingProfile()
     {
-        public BookingMappingProfile()
-        {
-            CreateMap<Booking, GetBookingDto>()
-                .ForMember(d => d.HotelName, o => o.MapFrom(s => s.Hotel!.Name))
-                .ForMember(d => d.Status, o => o.MapFrom(s => s.Status.ToString()));
-
-            CreateMap<CreateBookingDto, Booking>()
-                .ForMember(d => d.Id, o => o.Ignore())
-                .ForMember(d => d.UserId, o => o.Ignore())
-                .ForMember(d => d.Totalprice, o => o.Ignore())
-                .ForMember(d => d.Status, o => o.Ignore())
-                .ForMember(d => d.CreateAt, o => o.Ignore())
-                .ForMember(d => d.UpdateAt, o => o.Ignore())
-                .ForMember(d => d.Hotel, o => o.Ignore());
-
-            CreateMap<UpdateBookingDto, Booking>()
-                .ForMember(d => d.Id, o => o.Ignore())
-                .ForMember(d => d.UserId, o => o.Ignore())
-                .ForMember(d => d.Totalprice, o => o.Ignore())
-                .ForMember(d => d.Status, o => o.Ignore())
-                .ForMember(d => d.CreateAt, o => o.Ignore())
-                .ForMember(d => d.UpdateAt, o => o.Ignore())
-                .ForMember(d => d.Hotel, o => o.Ignore());
-        }
+        CreateMap<Booking, GetBookingDto>()
+            .ForCtorParam("HotelName", o => o.MapFrom(s => s.Hotel != null ? s.Hotel.Name : string.Empty))
+            .ForCtorParam("Guests", o => o.MapFrom(s => s.Guest))
+            .ForCtorParam("Status", o => o.MapFrom(s => s.Status.ToString()));
+        CreateMap<CreateBookingDto, Booking>(MemberList.Source)
+            .ForMember(d => d.Guest, o => o.MapFrom(s => s.Guests));
+        CreateMap<UpdateBookingDto, Booking>(MemberList.Source)
+            .ForMember(d => d.Guest, o => o.MapFrom(s => s.Guests));
     }
 }

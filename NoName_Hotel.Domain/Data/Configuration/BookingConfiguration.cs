@@ -18,6 +18,8 @@ namespace NoName_Hotel.Domain.Data.Configuration
                       .HasPrecision(18, 2);
 
             builder.HasIndex(x => x.UserId);
+            builder.Property(x => x.RowVersion).IsRowVersion();
+            builder.Property(x => x.Rooms).HasDefaultValue(1);
             builder.HasIndex(x => x.HotelId);
             builder.HasIndex(x => new { x.CheckIn, x.CheckOut });
         }

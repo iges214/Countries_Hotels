@@ -17,7 +17,7 @@ namespace NoName_Hotel.Domain.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.30")
+                .HasAnnotation("ProductVersion", "9.0.21")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -201,6 +201,9 @@ namespace NoName_Hotel.Domain.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Key")
+                        .IsUnique();
+
                     b.ToTable("ApiKeys");
                 });
 
@@ -300,6 +303,17 @@ namespace NoName_Hotel.Domain.Migrations
                     b.Property<int>("HotelId")
                         .HasColumnType("int");
 
+                    b.Property<int>("Rooms")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -337,13 +351,22 @@ namespace NoName_Hotel.Domain.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("ShortName")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
 
                     b.HasKey("CountryId");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Countries_Name");
+
+                    b.HasIndex("ShortName")
+                        .HasDatabaseName("IX_Countries_ShortName");
 
                     b.ToTable("Countries");
                 });
@@ -358,14 +381,16 @@ namespace NoName_Hotel.Domain.Migrations
 
                     b.Property<string>("Address")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
 
                     b.Property<int>("CountryId")
                         .HasColumnType("int");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<decimal>("PerNightRate")
                         .HasPrecision(18, 2)
@@ -374,9 +399,22 @@ namespace NoName_Hotel.Domain.Migrations
                     b.Property<double>("Rating")
                         .HasColumnType("float");
 
+                    b.Property<int>("TotalRooms")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("CountryId");
+                    b.HasIndex("CountryId")
+                        .HasDatabaseName("IX_Hotels_CountryId");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("IX_Hotels_Name");
+
+                    b.HasIndex("CountryId", "Name")
+                        .IsUnique();
+
+                    b.HasIndex("CountryId", "Rating")
+                        .HasDatabaseName("IX_Hotels_CountryId_Rating");
 
                     b.ToTable("Hotels");
                 });

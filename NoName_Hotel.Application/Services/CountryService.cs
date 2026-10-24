@@ -13,7 +13,6 @@ using NoName_Hotel.Application.DTO.HotelDto;
 using NoName_Hotel.Common.QuerableXtensions.Extensions;
 using Microsoft.AspNetCore.JsonPatch;
 
-
 namespace NoName_Hotel.Application.Services
 {
     public class CountriesService(NoName_hotel_DbContext context, IMapper mapper) : ICountriesService
@@ -82,7 +81,9 @@ namespace NoName_Hotel.Application.Services
                     return Result.BadRequest(new Error(ErrorCodes.Validation, "Id route value does not match payload Id."));
                 }
 
-                var country = await context.Countries.FindAsync(id);
+                var country = await context.Countries
+                    .AsTracking()
+                    .FirstOrDefaultAsync(c => c.CountryId == id);
                 if (country is null)
                 {
                     return Result.NotFound(new Error(ErrorCodes.NotFound, $"Country '{id}' was not found."));
@@ -104,7 +105,9 @@ namespace NoName_Hotel.Application.Services
         {
             try
             {
-                var country = await context.Countries.FindAsync(id);
+                var country = await context.Countries
+                    .AsTracking()
+                    .FirstOrDefaultAsync(c => c.CountryId == id);
                 if (country is null)
                 {
                     return Result.NotFound(new Error(ErrorCodes.NotFound, $"Country '{id}' was not found."));
@@ -187,7 +190,9 @@ namespace NoName_Hotel.Application.Services
 
         public async Task<Result> PatchCountryAsycn(int Id, JsonPatchDocument<UpdateCountryDto> patcDoc)
         {
-            var country = await context.Countries.FindAsync(Id);
+            var country = await context.Countries
+                .AsTracking()
+                .FirstOrDefaultAsync(c => c.CountryId == Id);
 
             if(country is null)
             {
@@ -200,19 +205,19 @@ namespace NoName_Hotel.Application.Services
 
             if(countryDto.Id != Id)
             {
-                Result.BadRequest(new Error(ErrorCodes.Validation, "cannot modify the Id field"));
+               return Result.BadRequest(new Error(ErrorCodes.Validation, "cannot modify the Id field"));
             }
 
             var normalized = countryDto.Name.ToLower().Trim();
             var duplicates = await context.Countries
-                .AnyAsync(a => a.Name.ToLower().Trim() == normalized && a.CountryId != Id);
-
+                .AnyAsync(a => a.Name.ToLower().Trim() == normalized && 
+                     a.CountryId != Id);
             if (duplicates)
             {
                 return Result.Failure(new Error(ErrorCodes.Conflict, $"country with name '{countryDto.Name}' already exist"));
             }
 
-            mapper.Map(country, country);
+            mapper.Map(countryDto, country);
             context.Entry(country).State = EntityState.Modified;
             await context.SaveChangesAsync();
 
