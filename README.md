@@ -19,12 +19,14 @@ Set JWT configuration through environment variables or user secrets. The signing
 at least 32 UTF-8 bytes. Use a new randomly generated key, not the old value in Git history:
 
 ```powershell
-dotnet user-secrets set "JwtSettings:key" "<new-random-secret>" --project NoName_Hotel.api
+$jwtKey = [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(64))
+@{ 'JwtSettings:key' = $jwtKey } | ConvertTo-Json | dotnet user-secrets set --project NoName_Hotel.api
 ```
 
-Issuer, audience and duration are configured in appsettings.json. Production requires a signing key;
-startup fails if it is missing or invalid. Development can use a temporary random key, in which case
-tokens stop working whenever the app restarts. Secrets and bearer tokens are not logged.
+Issuer, audience and duration are configured in appsettings.json. A signing key is required in every
+environment; startup fails if it is missing. The Development launch profiles load the key from user
+secrets, keeping it outside the repository and stable across restarts. For other environments, set
+the JwtSettings__key environment variable. Secrets and bearer tokens are not logged.
 Changing the signing key invalidates previously issued JWTs. Any previously deployed key must also
 be replaced in that deployment's secret store; changing source files cannot rotate remote secrets.
 

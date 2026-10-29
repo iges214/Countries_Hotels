@@ -1,17 +1,19 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using NoName_Hotel.api.AuthorizationFilters;
 using NoName_Hotel.Application.Contracts;
 using NoName_Hotel.Application.DTO.BookingsDto;
 using NoName_Hotel.Common.QuerableXtensions.Filtering;
 using NoName_Hotel.Common.QuerableXtensions.Paging;
-using static NuGet.Packaging.PackagingConstants;
+//using static NuGet.Packaging.PackagingConstants;
 
 namespace NoName_Hotel.api.Controllers
 {
     [Route("api/hotels/{hotelId:int}/bookings")]
     [ApiController]
     [Authorize]
+    [EnableRateLimiting("perUser")]
     public class HotelBookingsController(IBookingService bookingService) : BaseApiController
     {
         [HttpGet]

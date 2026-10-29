@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
+using Microsoft.AspNetCore.RateLimiting;
 using NoName_Hotel.api.Filters;
 using NoName_Hotel.Application.Contracts;
 using NoName_Hotel.Application.DTO.CountryDto;
@@ -16,10 +17,11 @@ namespace NoName_Hotel.api.Controllers
     [ApiController]
     [Authorize]
     [ServiceFilter(typeof(CatalogCacheInvalidationFilter))]
-    [OutputCache(PolicyName = CacheConstants.AuthenticatedUserCachingPolicy)]
+    [EnableRateLimiting("fixed")]
     public class CountriesController(ICountriesService countryService) : BaseApiController
     {
         [HttpGet]
+        [OutputCache(PolicyName = CacheConstants.AuthenticatedUserCachingPolicy)]
         public async Task<ActionResult<IEnumerable<GetCountriesDto>>> GetCountries([FromQuery] CountryFilterParameters countryFilterParameters)
         {
             var countries = await countryService.GetCountriesAsync(countryFilterParameters);
@@ -38,6 +40,7 @@ namespace NoName_Hotel.api.Controllers
 
         // GET: api/Countries/{id}/hotels
         [HttpGet("{countryId:int}/hotels")]
+        [OutputCache(PolicyName = CacheConstants.AuthenticatedUserCachingPolicy)]
         public async Task<ActionResult<GetCountryHotelsDto>> GetCountryHotels(
              [FromRoute] int countryId,
              [FromQuery] PaginationParameters paginationParameters,
