@@ -14,18 +14,50 @@ namespace NoName_Hotel.api.Controllers
 
         protected ActionResult MapErrorsToResponse(Error[] errors)
         {
-            if (errors is null || errors.Length == 0) return Problem();
+            if (errors is null || errors.Length == 0)
+            {
+                return Problem(
+                    statusCode : StatusCodes.Status500InternalServerError,
+                    title: "An error occurred",
+                    detail: "No error details provider"
+                    );
+            }
 
             var e = errors[0];
+            var errorDetails = string.Join("; ", errors.Select(a => a.Description));
             return e.Code switch
             {
-                ErrorCodes.NotFound => NotFound(e.Description),
-                ErrorCodes.Validation => BadRequest(e.Description),
-                ErrorCodes.BadRequest => BadRequest(e.Description),
-                ErrorCodes.Conflict => Conflict(e.Description),
-                ErrorCodes.Forbid => StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
-                    { Status = StatusCodes.Status403Forbidden, Title = "Forbidden", Detail = e.Description }),
-                _ => Problem(detail: string.Join("; ", errors.Select(x => x.Description)), title: e.Code)
+                ErrorCodes.NotFound => Problem(
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: "Resource not found",
+                    detail: errorDetails
+                    ),
+
+                ErrorCodes.Validation => ValidationProblem(
+                    title: "Validation failed",
+                    detail: errorDetails
+                    ),
+
+                ErrorCodes.BadRequest => Problem(
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: "bad request",
+                    detail: errorDetails
+                    ),
+                ErrorCodes.Conflict => Problem(
+                    statusCode: StatusCodes.Status409Conflict,
+                    title: ErrorCodes.Conflict,
+                    detail: errorDetails
+                    ),
+                ErrorCodes.Forbid => Problem(
+                    statusCode: StatusCodes.Status403Forbidden,
+                    title: "Frbidden",
+                    detail: errorDetails
+                    ),
+
+                _ => Problem(
+                    statusCode: StatusCodes.Status500InternalServerError,
+                    detail: string.Join("; ", errors.Select(x => x.Description)), 
+                    title: e.Code)
             };
         }
     }

@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using NoName_Hotel.api.Controllers.CachePolicies;
 using NoName_Hotel.api.Handlers;
+using NoName_Hotel.api.MiddleWare;
 using NoName_Hotel.Application.Contracts;
 using NoName_Hotel.Application.Contracts.AuthContracts;
 using NoName_Hotel.Application.Mappers;
@@ -125,6 +126,9 @@ try
     builder.Services.AddScoped<IUserServices, UserServices>();
     builder.Services.AddScoped<IApiKeyValidatorService, ApiKeyValidatorService>();
     builder.Services.AddScoped<IBookingService, BookingService>();
+    
+    builder.Services.AddExceptionHandler<GlobalExceptionHandlers>();
+    builder.Services.AddProblemDetails();
 
 
     //builder.Services.AddAutoMapper(cfg => { }, Assembly.GetExecutingAssembly());
@@ -219,6 +223,33 @@ try
 
 
     var app = builder.Build();
+
+    app.UseExceptionHandler();
+
+    app.UseSerilogRequestLogging(opt =>
+    {
+        opt.MessageTemplate = "HTTP {RequestMethod} {RequestPath} Responded {StatusCode} in {Elapsed:0.0000}ms ";
+
+        opt.GetLevel = (httpContext, elapsed, ex) => ex != null 
+        ? LogEventLevel.Error 
+        : httpContext.Response.StatusCode >= 500 
+            ? LogEventLevel.Error 
+            : httpContext.Response.StatusCode >= 400 
+                 ? LogEventLevel.Warning 
+                 : LogEventLevel.Information;
+
+        opt.EnrichDiagnosticContext = (dianosticContext, HttpContext) =>
+        {
+            dianosticContext.Set("UserName", HttpContext.User?.Identity?.Name ?? "anonymouse");
+
+            dianosticContext.Set("RemoteIP", HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+
+            if (HttpContext.User?.Identity?.IsAuthenticated == true)
+            {
+                dianosticContext.Set("UserId", HttpContext.User.FindFirst("sub")?.Value ?? "unknown");
+            }
+        };
+    });
     app.MapGroup("api/default").MapIdentityApi<ApplicationUser>();
 
     // Configure the HTTP request pipeline.
