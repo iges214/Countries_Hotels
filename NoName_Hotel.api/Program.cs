@@ -1,8 +1,12 @@
+using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Build.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using NoName_Hotel.api.Controllers.CachePolicies;
 using NoName_Hotel.api.Handlers;
@@ -19,6 +23,7 @@ using NoName_Hotel.Domain.Entities.Models;
 using Serilog;
 using Serilog.Events;
 using System.Text;
+using System.Text.Json;
 using System.Threading.RateLimiting;
 
 
@@ -136,7 +141,7 @@ try
     {
         cfg.AddProfile<HotelMappingProfile>();
         cfg.AddProfile<CountryMappingProfile>();
-        cfg.AddProfile<BookingMappingProfile>();
+        cfg.AddProfile<BookingMappingProfile>(); 
     });
 
     builder.Services.AddControllers()
@@ -221,6 +226,20 @@ try
         };
     });
 
+    builder.Services.AddHealthChecks()
+        .AddCheck("self", () => HealthCheckResult.Healthy("Application is running"), tags: ["api"])
+        .AddDbContextCheck<NoName_hotel_DbContext>(
+             name: "database",
+             failureStatus: HealthStatus.Unhealthy,
+             tags: ["db", "sql"]);
+
+    builder.Services.AddHealthChecksUI(setup =>
+    {
+        setup.SetEvaluationTimeInSeconds(10); //checks eveery 10secs
+        setup.MaximumHistoryEntriesPerEndpoint(50);
+        setup.AddHealthCheckEndpoint("NoName_Hotel API", "/healths");
+    }).AddInMemoryStorage();
+
 
     var app = builder.Build();
 
@@ -260,6 +279,60 @@ try
     }
 
     app.UseHttpsRedirection();
+
+    //app.MapHealthChecks("/healths", new HealthCheckOptions
+    //{
+    //    ResponseWriter = async (context, report) =>
+    //    {
+    //        context.Response.ContentType = "application/json";
+
+    //        var response = new
+    //        {
+    //            status = report.Status.ToString(),
+    //            checks = report.Entries.Select(entry => new
+    //            {
+    //                name = entry.Key,
+    //                status = entry.Value.Status.ToString(),
+    //                description = entry.Value.Description,
+    //                duration = entry.Value.Duration.TotalMilliseconds,
+    //                exception = entry.Value.Exception?.Message,
+    //                data = entry.Value.Data
+
+    //            }),
+
+    //        totalDuration = report.TotalDuration.TotalMilliseconds
+    //        };
+
+    //        await context.Response.WriteAsync(JsonSerializer.Serialize(response, new JsonSerializerOptions
+    //        {
+    //            WriteIndented = true
+    //        }));
+    //}
+
+    //});
+
+    app.MapHealthChecks("/healths", new HealthCheckOptions
+    {
+        ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+    });
+
+    app.MapHealthChecks("/healths/live", new HealthCheckOptions
+    {
+        Predicate = _ => false
+    });
+
+    app.MapHealthChecks("/healths/ready", new HealthCheckOptions
+    {
+        Predicate = check => check.Tags.Contains("db")
+    });
+
+    app.MapHealthChecksUI(opt =>
+    {
+        opt.UIPath = "/healthchecks-ui";
+        opt.ApiPath = "/healthchecks-Api";
+    });
+
+
 
     app.UseRateLimiter();
 
