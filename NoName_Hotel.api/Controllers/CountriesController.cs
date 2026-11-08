@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Asp.Versioning;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
@@ -12,14 +13,26 @@ using NoName_Hotel.Common.QuerableXtensions.Paging;
 
 namespace NoName_Hotel.api.Controllers
 {
+    /// <summary>
+    ///
+    /// </summary>
+    /// <param name="countryService"></param>
+    //[Route("api/v{version:apiVersion}/[controller]")] //Route based versioning
     [Route("api/[controller]")]
     [Route("api/v1/countries")]
     [ApiController]
+    [ApiVersion("1.0")]
     [Authorize]
     [ServiceFilter(typeof(CatalogCacheInvalidationFilter))]
     [EnableRateLimiting("fixed")]
     public class CountriesController(ICountriesService countryService) : BaseApiController
     {
+
+        /// <summary>
+        ///      sonmething is supposed to appear here in the endpoint
+        /// </summary>
+        /// <param name="countryFilterParameters"></param>
+        /// <returns></returns>
         [HttpGet]
         [OutputCache(PolicyName = CacheConstants.AuthenticatedUserCachingPolicy)]
         public async Task<ActionResult<IEnumerable<GetCountriesDto>>> GetCountries([FromQuery] CountryFilterParameters countryFilterParameters)
@@ -38,6 +51,13 @@ namespace NoName_Hotel.api.Controllers
             return ToActionResult(country);
         }
 
+        /// <summary>
+        /// it is well
+        /// </summary>
+        /// <param name="countryId"></param>
+        /// <param name="paginationParameters"></param>
+        /// <param name="countryFilterParameters"></param>
+        /// <returns></returns>
         // GET: api/Countries/{id}/hotels
         [HttpGet("{countryId:int}/hotels")]
         [OutputCache(PolicyName = CacheConstants.AuthenticatedUserCachingPolicy)]
@@ -70,7 +90,7 @@ namespace NoName_Hotel.api.Controllers
             }
 
 
-                
+
             var result = await countryService.PatchCountryAsycn(id, patchDoc);
 
             return ToActionResult(result);

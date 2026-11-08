@@ -1,4 +1,4 @@
-﻿using NoName_Hotel.Common.Enum;
+using NoName_Hotel.Common.Enum;
 
 namespace NoName_Hotel.Domain.Entities.Models
 {
@@ -14,9 +14,12 @@ namespace NoName_Hotel.Domain.Entities.Models
 
         public DateOnly CheckIn { get; set; }
         public DateOnly CheckOut { get; set; }
+        public DateTime? ActualCheckInAt { get; set; }
+        public DateTime? ActualCheckOutAt { get; set; }
 
         public int Guest { get; set; }
         public int Rooms { get; set; } = 1;
+        public ICollection<BookingRoom> RoomReservations { get; set; } = [];
 
         public byte[] RowVersion { get; set; } = [];
 

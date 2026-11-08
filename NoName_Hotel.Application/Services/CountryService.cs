@@ -2,7 +2,6 @@
 using AutoMapper.QueryableExtensions;
 using Microsoft.EntityFrameworkCore;
 using NoName_Hotel.Application.Contracts;
-using NoName_Hotel.Domain.Data;
 using NoName_Hotel.Application.DTO.CountryDto;
 using NoName_Hotel.Common.Results;
 using NoName_Hotel.Common.Constants;
@@ -10,16 +9,17 @@ using NoName_Hotel.Domain.Entities.Models;
 using NoName_Hotel.Common.QuerableXtensions.Filtering;
 using NoName_Hotel.Common.QuerableXtensions.Paging;
 using NoName_Hotel.Application.DTO.HotelDto;
-using NoName_Hotel.Common.QuerableXtensions.Extensions;
+using NoName_Hotel.Application.Querying;
 using Microsoft.AspNetCore.JsonPatch;
+using NoName_Hotel.Application.Validation;
 
 namespace NoName_Hotel.Application.Services
 {
-    public class CountriesService(NoName_hotel_DbContext context, IMapper mapper) : ICountriesService
+    public class CountriesService(IHotelRepository context, IMapper mapper) : ICountriesService
     {
         public async Task<Result<IEnumerable<GetCountriesDto>>> GetCountriesAsync(CountryFilterParameters countryFilterParameters)
         {
-            var query = context.Countries.AsQueryable();
+            var query = context.Query<Country>().AsQueryable();
             if (!string.IsNullOrWhiteSpace(countryFilterParameters.Search))
             {
                 var term = countryFilterParameters.Search.Trim();
@@ -37,7 +37,7 @@ namespace NoName_Hotel.Application.Services
 
         public async Task<Result<GetCountryDto>> GetCountryAsync(int id)
         {
-            var country = await context.Countries
+            var country = await context.Query<Country>()
                 .AsNoTracking()
                 .Where(q => q.CountryId == id)
                 .ProjectTo<GetCountryDto>(mapper.ConfigurationProvider)
@@ -59,7 +59,7 @@ namespace NoName_Hotel.Application.Services
                 }
 
                 var country = mapper.Map<Country>(createDto);
-                context.Countries.Add(country);
+                context.Add(country);
                 await context.SaveChangesAsync();
 
                 var dto = mapper.Map<GetCountryDto>(country);
@@ -81,7 +81,7 @@ namespace NoName_Hotel.Application.Services
                     return Result.BadRequest(new Error(ErrorCodes.Validation, "Id route value does not match payload Id."));
                 }
 
-                var country = await context.Countries
+                var country = await context.Query<Country>()
                     .AsTracking()
                     .FirstOrDefaultAsync(c => c.CountryId == id);
                 if (country is null)
@@ -105,7 +105,7 @@ namespace NoName_Hotel.Application.Services
         {
             try
             {
-                var country = await context.Countries
+                var country = await context.Query<Country>()
                     .AsTracking()
                     .FirstOrDefaultAsync(c => c.CountryId == id);
                 if (country is null)
@@ -113,7 +113,7 @@ namespace NoName_Hotel.Application.Services
                     return Result.NotFound(new Error(ErrorCodes.NotFound, $"Country '{id}' was not found."));
                 }
 
-                context.Countries.Remove(country);
+                context.Remove(country);
                 await context.SaveChangesAsync();
 
                 return Result.Success();
@@ -126,12 +126,12 @@ namespace NoName_Hotel.Application.Services
 
         public async Task<bool> CountryExistsAsync(int id)
         {
-            return await context.Countries.AsNoTracking().AnyAsync(e => e.CountryId == id);
+            return await context.Query<Country>().AsNoTracking().AnyAsync(e => e.CountryId == id);
         }
 
         public async Task<bool> CountryExistsAsync(string name)
         {
-            return await context.Countries
+            return await context.Query<Country>()
                 .AsNoTracking()
                 .AnyAsync(c => c.Name.ToLower().Trim() == name.ToLower().Trim());
         }
@@ -146,12 +146,12 @@ namespace NoName_Hotel.Application.Services
                     new Error(ErrorCodes.NotFound, $"Country '{countryId}' was not found"));
             }
 
-            var countryName = await context.Countries
+            var countryName = await context.Query<Country>()
                 .Where(a => a.CountryId == countryId)
                 .Select(a => a.Name)
                 .SingleAsync();
 
-            var HotelsQuery = context.Hotels
+            var HotelsQuery = context.Query<Hotel>()
                 .Where(a => a.CountryId == countryId)
                 .AsQueryable();
 
@@ -190,7 +190,11 @@ namespace NoName_Hotel.Application.Services
 
         public async Task<Result> PatchCountryAsycn(int Id, JsonPatchDocument<UpdateCountryDto> patcDoc)
         {
-            var country = await context.Countries
+            if (patcDoc.Operations.Count > 20 || patcDoc.Operations.Any(op =>
+                (op.path != "/name" && op.path != "/shortName") ||
+                (op.op != "add" && op.op != "replace" && op.op != "remove" && op.op != "test")))
+                return Result.BadRequest(new Error(ErrorCodes.Validation, "Only name and shortName may be patched, using at most 20 supported operations."));
+            var country = await context.Query<Country>()
                 .AsTracking()
                 .FirstOrDefaultAsync(c => c.CountryId == Id);
 
@@ -200,7 +204,11 @@ namespace NoName_Hotel.Application.Services
             }
 
             var countryDto = mapper.Map<UpdateCountryDto>(country);
-            patcDoc.ApplyTo(countryDto);
+            var patchErrors = new List<Error>();
+            patcDoc.ApplyTo(countryDto, error => patchErrors.Add(new Error(ErrorCodes.Validation, error.ErrorMessage)));
+            if (patchErrors.Count > 0) return Result.BadRequest(patchErrors.ToArray());
+            var validation = DtoValidation.Errors(countryDto);
+            if (validation.Length > 0) return Result.BadRequest(validation);
 
 
             if(countryDto.Id != Id)
@@ -209,8 +217,8 @@ namespace NoName_Hotel.Application.Services
             }
 
             var normalized = countryDto.Name.ToLower().Trim();
-            var duplicates = await context.Countries
-                .AnyAsync(a => a.Name.ToLower().Trim() == normalized && 
+            var duplicates = await context.Query<Country>()
+                .AnyAsync(a => a.Name.ToLower().Trim() == normalized &&
                      a.CountryId != Id);
             if (duplicates)
             {
@@ -218,7 +226,7 @@ namespace NoName_Hotel.Application.Services
             }
 
             mapper.Map(countryDto, country);
-            context.Entry(country).State = EntityState.Modified;
+
             await context.SaveChangesAsync();
 
             return Result.Success();

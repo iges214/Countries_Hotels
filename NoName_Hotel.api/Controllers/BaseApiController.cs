@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using NoName_Hotel.Common.Constants;
 using NoName_Hotel.Common.Results;
 
@@ -28,7 +28,7 @@ namespace NoName_Hotel.api.Controllers
             return e.Code switch
             {
                 ErrorCodes.NotFound => Problem(
-                    statusCode: StatusCodes.Status400BadRequest,
+                    statusCode: StatusCodes.Status404NotFound,
                     title: "Resource not found",
                     detail: errorDetails
                     ),

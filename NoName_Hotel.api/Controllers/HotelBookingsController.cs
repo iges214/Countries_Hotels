@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using NoName_Hotel.api.AuthorizationFilters;
@@ -11,6 +11,8 @@ using NoName_Hotel.Common.QuerableXtensions.Paging;
 namespace NoName_Hotel.api.Controllers
 {
     [Route("api/hotels/{hotelId:int}/bookings")]
+    [Route("api/v1/hotels/{hotelId:int}/bookings")]
+    [Route("api/v1/branches/{hotelId:int}/bookings")]
     [ApiController]
     [Authorize]
     [EnableRateLimiting("perUser")]
@@ -29,6 +31,7 @@ namespace NoName_Hotel.api.Controllers
         [HttpPost]
         public async Task<ActionResult<GetBookingDto>> CreateBooking([FromRoute] int hotelId, [FromBody] CreateBookingDto createBooking)
         {
+            if (hotelId != createBooking.HotelId) return BadRequest("The branch in the route must match HotelId.");
             var result = await bookingService.CreateBookingAsync(createBooking);
             return ToActionResult(result);
         }

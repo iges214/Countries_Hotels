@@ -1,6 +1,7 @@
-﻿using Microsoft.EntityFrameworkCore;
+using NoName_Hotel.Domain.Entities.Models;
+using Microsoft.EntityFrameworkCore;
 using NoName_Hotel.Application.Contracts.AuthContracts;
-using NoName_Hotel.Domain.Data;
+using NoName_Hotel.Application.Contracts;
 
 namespace NoName_Hotel.Application.Services.AuthServices
 {
@@ -9,14 +10,14 @@ namespace NoName_Hotel.Application.Services.AuthServices
     //and if there is expiration, you would make sure it hasnt expired
 
 
-    public class ApiKeyValidatorService(NoName_hotel_DbContext dbContext) : IApiKeyValidatorService
+    public class ApiKeyValidatorService(IHotelRepository dbContext) : IApiKeyValidatorService
     //public class ApiKeyValidatorService(IConfiguration configuration) : IApiKeyValidatorService
     {
         public async Task<bool> IaValidAsync(string ApiKey, CancellationToken cancellationTokenv = default)
         {
             if (string.IsNullOrWhiteSpace(ApiKey)) return false;
 
-            var apiKeyEntity = await dbContext.ApiKeys
+            var apiKeyEntity = await dbContext.Query<ApiKey>()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(k  => k.Key == ApiKey, cancellationTokenv);
 

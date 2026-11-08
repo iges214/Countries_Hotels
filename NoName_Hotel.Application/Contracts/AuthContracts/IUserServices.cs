@@ -7,7 +7,10 @@ namespace NoName_Hotel.Application.Contracts.AuthContracts
     {
         string UserId { get; }
 
-        Task<Result<string>> LoginUserAsync(LoginUserDto loginUserDto);
+        Task<Result<BrowserSessionTokens>> LoginUserAsync(LoginUserDto loginUserDto);
         Task<Result<RegisteredUserDto>> RegisterAsync(RegisterUserDto registeredUserDto);
+        Task<Result<AccountDto>> GetAccountAsync();
+        Task<Result> UpdateAccountAsync(UpdateAccountDto dto);
+        Task<Result> ChangePasswordAsync(ChangePasswordDto dto);
     }
 }

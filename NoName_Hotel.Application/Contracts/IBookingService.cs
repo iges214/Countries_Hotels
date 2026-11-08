@@ -16,5 +16,6 @@ namespace NoName_Hotel.Application.Contracts
         Task<Result<GetBookingDto>> CreateBookingAsync(CreateBookingDto dto);
         Task<Result<GetBookingDto>> UpdateBookingAsync(int hotelId, int bookingId, UpdateBookingDto updateBookingDto);
         Task<Result<PageResult<GetBookingDto>>> GetUserBookingsForHotelAsync(int hotelId, PaginationParameters paginationParameters, BookingFilterParameters bookingFilterParameters);
+        Task<Result<PageResult<GetBookingDto>>> GetUserBookingsAsync(PaginationParameters paginationParameters);
     }
 }

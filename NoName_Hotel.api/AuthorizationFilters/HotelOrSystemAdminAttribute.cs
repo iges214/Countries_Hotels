@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
-using NoName_Hotel.Domain.Data;
+using NoName_Hotel.Application.Contracts;
+using NoName_Hotel.Domain.Entities.Models;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 
@@ -15,7 +16,7 @@ namespace NoName_Hotel.api.AuthorizationFilters
         }
     }
 
-    public class HotelOrSystemAdminFilter(NoName_hotel_DbContext DbContext) : IAsyncAuthorizationFilter
+    public class HotelOrSystemAdminFilter(IHotelRepository repository) : IAsyncAuthorizationFilter
     {
         public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
         {
@@ -44,6 +45,7 @@ namespace NoName_Hotel.api.AuthorizationFilters
 
             // Try to get hotelId from route values
             context.RouteData.Values.TryGetValue("hotelId", out var hotelIdObj);
+            if (hotelIdObj is null) context.RouteData.Values.TryGetValue("id", out hotelIdObj);
             int.TryParse(hotelIdObj?.ToString(), out int hotelId);
             if (hotelId == 0)
             {
@@ -53,7 +55,7 @@ namespace NoName_Hotel.api.AuthorizationFilters
 
 
             //checking if user is an admin for this specific hotel
-            var isHotelAdminUser = await DbContext.HotelAdmins
+            var isHotelAdminUser = await repository.Query<HotelAdmin>()
                 .AnyAsync(a => a.UserId == userId && a.HotelId == hotelId);
 
             if (!isHotelAdminUser)

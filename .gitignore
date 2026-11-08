@@ -4,6 +4,8 @@
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
 # User-specific files
+NoName_Hotel.api/wwwroot/uploads/*
+!NoName_Hotel.api/wwwroot/uploads/.gitkeep
 *.rsuser
 *.suo
 *.user

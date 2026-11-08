@@ -1,4 +1,4 @@
-﻿namespace NoName_Hotel.Application.DTO.BookingsDto
+namespace NoName_Hotel.Application.DTO.BookingsDto
 {
     public record GetBookingDto
     (
@@ -12,6 +12,13 @@
         string Status,
         DateTime CreateAt,
         DateTime? UpdateAt,
-        int Rooms
-    );
+        int Rooms,
+        int[] RoomIds,
+        string CurrencyCode
+    )
+    {
+        public bool IsCheckedIn { get; init; }
+        public bool IsCheckedOut { get; init; }
+        public string TimeZoneId { get; init; } = "Africa/Lagos";
+    }
 }

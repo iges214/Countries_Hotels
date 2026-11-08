@@ -7,7 +7,7 @@ using NoName_Hotel.Application.DTO.AuthDto;
 using NoName_Hotel.Application.DTO.BookingsDto;
 using NoName_Hotel.Application.DTO.CountryDto;
 using NoName_Hotel.Application.DTO.HotelDto;
-using NoName_Hotel.Domain.Data;
+using NoName_Hotel.Infrastructure.Data;
 using Xunit;
 
 namespace NoName_Hotel.Tests;
@@ -17,7 +17,7 @@ public class ApiRegressionTests
     private static DateOnly Start => DateOnly.FromDateTime(DateTime.UtcNow).AddDays(10);
 
     [Fact]
-    public async Task Ordinary_names_register_and_privileged_registration_is_rejected()
+    public async Task Ordinary_names_register_with_the_user_role()
     {
         using var app = new TestApplication();
         await app.SeedAsync();
@@ -29,13 +29,33 @@ public class ApiRegressionTests
         var registered = await client.PostAsJsonAsync("/api/v1/auth/register", normal);
         Assert.Equal(HttpStatusCode.OK, registered.StatusCode);
         Assert.Equal("User", (await registered.Content.ReadFromJsonAsync<RegisteredUserDto>())!.Role);
-        normal.Email = "admin@example.com";
-        normal.Role = "Administrator";
-        var escalation = await client.PostAsJsonAsync("/api/v1/auth/register", normal);
-        Assert.Equal(HttpStatusCode.BadRequest, escalation.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("Administrator", null)]
+    [InlineData("Hotel Admin", 1)]
+    [InlineData("User", 1)]
+    public async Task Removed_registration_fields_cannot_grant_privileges(string role, int? hotelId)
+    {
+        using var app = new TestApplication();
+        await app.SeedAsync();
+        using var client = app.CreateClient(new() { BaseAddress = new Uri("https://localhost") });
+        var response = await client.PostAsJsonAsync("/api/v1/auth/register", new
+        {
+            Email = "new@example.com", Password = "ValidPassword1!", FirstName = "Ada", LastName = "Obi",
+            Role = role, AssociatedHotelId = hotelId
+        });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var registered = (await response.Content.ReadFromJsonAsync<RegisteredUserDto>())!;
+        Assert.Equal("User", registered.Role);
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<NoName_hotel_DbContext>();
-        Assert.False(await db.Users.AnyAsync(u => u.Email == "admin@example.com"));
+        var roles = await (from assignment in db.UserRoles
+                           join assignedRole in db.Roles on assignment.RoleId equals assignedRole.Id
+                           where assignment.UserId == registered.Id
+                           select assignedRole.Name).ToListAsync();
+        Assert.Equal("User", Assert.Single(roles));
+        Assert.False(await db.HotelAdmins.AnyAsync(a => a.UserId == registered.Id));
     }
 
     [Fact]
@@ -45,7 +65,7 @@ public class ApiRegressionTests
         await app.SeedAsync();
         using var guest = app.AuthenticatedClient();
         var response = await guest.PostAsJsonAsync("/api/v1/hotels/1/bookings",
-            new CreateBookingDto(1, Start, Start.AddDays(3), 3, 2));
+            new CreateBookingDto(1, Start, Start.AddDays(3), 3, 2, [1, 2]));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var booking = (await response.Content.ReadFromJsonAsync<GetBookingDto>())!;
         Assert.Equal(600m, booking.TotalPrice);
@@ -56,7 +76,7 @@ public class ApiRegressionTests
         var confirmed = await admin.PutAsync($"/api/v1/hotels/1/bookings/{booking.Id}/admin/confirm", null);
         Assert.Equal(HttpStatusCode.NoContent, confirmed.StatusCode);
         var updated = await guest.PutAsJsonAsync($"/api/v1/hotels/1/bookings/{booking.Id}",
-            new UpdateBookingDto(Start, Start.AddDays(2), 2, 1));
+            new UpdateBookingDto(Start, Start.AddDays(2), 2, 1, [1]));
         Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
         var cancelled = await guest.PostAsync($"/api/v1/hotels/1/bookings/{booking.Id}/cancel", null);
         Assert.Equal(HttpStatusCode.NoContent, cancelled.StatusCode);
@@ -75,15 +95,15 @@ public class ApiRegressionTests
         await app.SeedAsync();
         using var guest = app.AuthenticatedClient();
         var mismatch = await guest.PostAsJsonAsync("/api/hotels/2/bookings",
-            new CreateBookingDto(1, Start, Start.AddDays(2), 1));
+            new CreateBookingDto(1, Start, Start.AddDays(2), 1, RoomIds: [1]));
         Assert.Equal(HttpStatusCode.BadRequest, mismatch.StatusCode);
         var first = await guest.PostAsJsonAsync("/api/hotels/1/bookings",
-            new CreateBookingDto(1, Start, Start.AddDays(2), 2, 2));
+            new CreateBookingDto(1, Start, Start.AddDays(2), 2, 2, [1, 2]));
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         var booking = (await first.Content.ReadFromJsonAsync<GetBookingDto>())!;
         using var other = app.AuthenticatedClient("other");
         Assert.Equal(HttpStatusCode.Conflict, (await other.PostAsJsonAsync("/api/hotels/1/bookings",
-            new CreateBookingDto(1, Start, Start.AddDays(2), 1))).StatusCode);
+            new CreateBookingDto(1, Start, Start.AddDays(2), 1, RoomIds: [1]))).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await other.PostAsync(
             $"/api/hotels/1/bookings/{booking.Id}/cancel", null)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await other.PutAsync(
@@ -155,7 +175,7 @@ public class ApiRegressionTests
         await app.SeedAsync();
         using (var scope = app.Services.CreateScope())
             await scope.ServiceProvider.GetRequiredService<NoName_hotel_DbContext>()
-                .Database.ExecuteSqlRawAsync("DROP TABLE Countries");
+                .Database.ExecuteSqlRawAsync("ALTER TABLE Countries RENAME COLUMN Name TO MissingName");
         using var client = app.AuthenticatedClient();
         var response = await client.GetAsync("/api/v1/countries/1");
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);

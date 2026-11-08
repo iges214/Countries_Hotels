@@ -1,20 +1,16 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
 using NoName_Hotel.Application.Contracts.AuthContracts;
 using NoName_Hotel.Application.DTO.AuthDto;
 using NoName_Hotel.Application.Validation;
 using NoName_Hotel.Common.Constants;
-using NoName_Hotel.Common.JWT;
 using NoName_Hotel.Common.Results;
 using NoName_Hotel.Domain.Entities.Models;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
 namespace NoName_Hotel.Application.Services.AuthServices;
-public class UserServices(UserManager<ApplicationUser> userManager, IOptions<JwtSettings> jwtOptions,
+public class UserServices(UserManager<ApplicationUser> userManager, BrowserSessionService sessions,
     IHttpContextAccessor httpContext, ILogger<UserServices> logger) : IUserServices
 {
     public async Task<Result<RegisteredUserDto>> RegisterAsync(RegisterUserDto dto)
@@ -22,11 +18,6 @@ public class UserServices(UserManager<ApplicationUser> userManager, IOptions<Jwt
         var errors = DtoValidation.Errors(dto);
 
         if (errors.Length > 0) return Result<RegisteredUserDto>.BadRequest(errors);
-
-        if (dto.Role != RoleNames.User || dto.AssociatedHotelId.HasValue)
-            return Result<RegisteredUserDto>.BadRequest(new Error(ErrorCodes.Validation,
-                "Public registration only creates ordinary user accounts."));
-
 
         var user = new ApplicationUser
         {
@@ -68,7 +59,7 @@ public class UserServices(UserManager<ApplicationUser> userManager, IOptions<Jwt
         Result<RegisteredUserDto>.BadRequest(result.Errors.Select(e =>
             new Error(ErrorCodes.Validation, e.Description)).ToArray());
 
-    public async Task<Result<string>> LoginUserAsync(LoginUserDto dto)
+    public async Task<Result<BrowserSessionTokens>> LoginUserAsync(LoginUserDto dto)
     {
         var user = await userManager.FindByEmailAsync(dto.Email);
         if (user == null || await userManager.IsLockedOutAsync(user))
@@ -86,30 +77,44 @@ public class UserServices(UserManager<ApplicationUser> userManager, IOptions<Jwt
 
 
         await userManager.ResetAccessFailedCountAsync(user);
-        return Result<string>.Success(await GenerateToken(user));
+        return Result<BrowserSessionTokens>.Success(await sessions.StartAsync(user));
     }
 
-    private static Result<string> InvalidCredentials() =>
-        Result<string>.Failure(new Error(ErrorCodes.BadRequest, "Invalid credentials."));
+    private static Result<BrowserSessionTokens> InvalidCredentials() =>
+        Result<BrowserSessionTokens>.Failure(new Error(ErrorCodes.BadRequest, "Invalid credentials."));
 
     public string UserId => httpContext.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier)
         ?? httpContext.HttpContext?.User.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? string.Empty;
 
-    private async Task<string> GenerateToken(ApplicationUser user)
+    private static readonly Error AccountNotFound = new(ErrorCodes.NotFound, "Account not found.");
+
+    public async Task<Result<AccountDto>> GetAccountAsync()
     {
-        var claims = new List<Claim>
-        {
-            new(JwtRegisteredClaimNames.Sub, user.Id),
-            new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
-            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            new(JwtRegisteredClaimNames.Name, user.FullName)
-        };
-        claims.AddRange((await userManager.GetRolesAsync(user)).Select(r => new Claim(ClaimTypes.Role, r)));
-        var credentials = new SigningCredentials(new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(jwtOptions.Value.key)), SecurityAlgorithms.HmacSha256);
-        var token = new JwtSecurityToken(jwtOptions.Value.Issuer, jwtOptions.Value.Audience, claims,
-            expires: DateTime.UtcNow.AddMinutes(int.Parse(jwtOptions.Value.DurationInMinutes)),
-            signingCredentials: credentials);
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        var user = await userManager.FindByIdAsync(UserId);
+        return user is null
+            ? Result<AccountDto>.Failure(AccountNotFound)
+            : Result<AccountDto>.Success(new(user.FirstName, user.LastName, user.Email ?? ""));
     }
+
+    public async Task<Result> UpdateAccountAsync(UpdateAccountDto dto)
+    {
+        var user = await userManager.FindByIdAsync(UserId);
+        if (user is null) return Result.NotFound(AccountNotFound);
+        user.FirstName = dto.FirstName.Trim();
+        user.LastName = dto.LastName.Trim();
+        return AccountChangeResult(await userManager.UpdateAsync(user));
+    }
+
+    public async Task<Result> ChangePasswordAsync(ChangePasswordDto dto)
+    {
+        var user = await userManager.FindByIdAsync(UserId);
+        if (user is null) return Result.NotFound(AccountNotFound);
+        return AccountChangeResult(await userManager.ChangePasswordAsync(user, dto.CurrentPassword, dto.NewPassword));
+    }
+
+    private static Result AccountChangeResult(IdentityResult result) =>
+        result.Succeeded
+            ? Result.Success()
+            : Result.BadRequest(result.Errors.Select(error => new Error(ErrorCodes.Validation, error.Description)).ToArray());
+
 }

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NoName_Hotel.Application.Contracts;
 using NoName_Hotel.Application.DTO.HotelDto;
@@ -7,13 +7,15 @@ using NoName_Hotel.api.Filters;
 using NoName_Hotel.Common.Constants;
 using NoName_Hotel.Common.QuerableXtensions.Filtering;
 using NoName_Hotel.Common.QuerableXtensions.Paging;
+using NoName_Hotel.api.AuthorizationFilters;
 using static NuGet.Packaging.PackagingConstants;
 
 namespace NoName_Hotel.api.Controllers
 {
     [Route("api/[controller]")]
-    [Route("api/hotels")]
+    //[Route("api/hotels")]
     [Route("api/v1/hotels")]
+    [Route("api/v1/branches")]
     [ServiceFilter(typeof(CatalogCacheInvalidationFilter))]
     [ApiController]
     [Authorize]
@@ -30,6 +32,7 @@ namespace NoName_Hotel.api.Controllers
 
         // GET: api/Hotels
         [HttpGet]
+        [AllowAnonymous]
         public async Task<ActionResult<PageResult<GetHotelDto>>> GetHotels(
             [FromQuery] PaginationParameters paginationParameters, 
             [FromQuery] HotelFilterParameters hotelFilterParameters)
@@ -42,6 +45,7 @@ namespace NoName_Hotel.api.Controllers
 
 
         [HttpGet("{id}")]
+        [AllowAnonymous]
         public async Task<ActionResult<GetHotelDto>> GetHotel(int id)
         {
             var hotel = await hotelService.GetHotelAsync(id);
@@ -50,7 +54,7 @@ namespace NoName_Hotel.api.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Roles = RoleNames.Administrator)]
+        [HotelOrSystemAdmin]
         public async Task<IActionResult> UpdateHotel(int id, UpdateHotelDto updateHotel)
         {
             if (id != updateHotel.Id)

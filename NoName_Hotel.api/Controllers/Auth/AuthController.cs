@@ -3,17 +3,18 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using NoName_Hotel.Application.Contracts.AuthContracts;
 using NoName_Hotel.Application.DTO.AuthDto;
+using NoName_Hotel.Application.Services.AuthServices;
+using System.Security.Claims;
 
 namespace NoName_Hotel.api.Controllers.Auth
 {
-    [Route("api/[controller]")]
     [Route("api/v1/auth")]
-    [EnableRateLimiting("auth")]
     [ApiController]
-
-    public class AuthController(IUserServices userServices) : BaseApiController
+    public class AuthController(IUserServices userServices, BrowserSessionService sessions) : BaseApiController
     {
-        [AllowAnonymous]
+        private const string RefreshCookie = "iges.refresh";
+
+        [AllowAnonymous, EnableRateLimiting("auth")]
         [HttpPost("register")]
         public async Task<ActionResult<RegisteredUserDto>> Register(RegisterUserDto registerUserDto)
         {
@@ -21,12 +22,60 @@ namespace NoName_Hotel.api.Controllers.Auth
             return ToActionResult(result);
         }
 
-        [AllowAnonymous]
+        [AllowAnonymous, EnableRateLimiting("auth")]
         [HttpPost("login")]
         public async Task<ActionResult<string>> Login(LoginUserDto loginUserDto)
         {
             var result = await userServices.LoginUserAsync(loginUserDto);
-            return ToActionResult(result);
+            if (!result.IsSuccess) return MapErrorsToResponse(result.Errors);
+            return SessionResponse(result.Value!);
         }
+
+        [AllowAnonymous]
+        [HttpPost("session/{sessionId:guid}/refresh")]
+        public async Task<ActionResult<string>> Refresh(Guid sessionId, RefreshRequest request)
+        {
+            if (!IsSessionRequest()) return StatusCode(StatusCodes.Status403Forbidden);
+
+            var tokens = await sessions.RefreshAsync(sessionId, Request.Cookies[RefreshCookie], request.Activity);
+            if (tokens is not null) return SessionResponse(tokens);
+            Response.Cookies.Delete(RefreshCookie, CookieOptionsFor(sessionId));
+            return Unauthorized();
+        }
+
+        [AllowAnonymous]
+        [HttpPost("session/{sessionId:guid}/logout")]
+        public async Task<IActionResult> Logout(Guid sessionId)
+        {
+            if (!IsSessionRequest()) return StatusCode(StatusCodes.Status403Forbidden);
+
+            var owner = Guid.TryParse(User.FindFirstValue(BrowserSessionService.SessionIdClaim), out var claimedId)
+                && claimedId == sessionId ? User.FindFirstValue(ClaimTypes.NameIdentifier) : null;
+            await sessions.RevokeAsync(sessionId, Request.Cookies[RefreshCookie], owner);
+            Response.Cookies.Delete(RefreshCookie, CookieOptionsFor(sessionId));
+            return NoContent();
+        }
+
+        private ActionResult<string> SessionResponse(BrowserSessionTokens tokens)
+        {
+            Response.Headers.CacheControl = "no-store";
+            var cookie = CookieOptionsFor(tokens.SessionId);
+            cookie.Expires = new DateTimeOffset(DateTime.SpecifyKind(tokens.ExpiresAt, DateTimeKind.Utc));
+            Response.Cookies.Append(RefreshCookie, tokens.RefreshToken, cookie);
+            return Ok(tokens.AccessToken);
+        }
+
+        private bool IsSessionRequest() => Request.Headers["X-IGES-Session"] == "1"
+            && Request.Headers["Sec-Fetch-Site"].ToString() is "" or "same-origin";
+
+        private static CookieOptions CookieOptionsFor(Guid sessionId) => new()
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.Strict,
+            Path = $"/api/v1/auth/session/{sessionId:D}"
+        };
+
+        public sealed record RefreshRequest(bool Activity);
     }
 }

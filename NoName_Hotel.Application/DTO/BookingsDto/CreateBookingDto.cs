@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace NoName_Hotel.Application.DTO.BookingsDto;
 
@@ -7,12 +7,14 @@ namespace NoName_Hotel.Application.DTO.BookingsDto;
      DateOnly CheckIn,
      DateOnly CheckOut,
      [Range(1, 10)] int Guests,
-     [Range(1, 100)] int Rooms = 1) : IValidatableObject
+     [Range(1, 100)] int Rooms = 1,
+        int[]? RoomIds = null) : IValidatableObject
     {
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
         {
-            if (CheckIn < DateOnly.FromDateTime(DateTime.UtcNow))
-                yield return new ValidationResult("Check-in cannot be in the past.", [nameof(CheckIn)]);
+
+            if (RoomIds is null || RoomIds.Length != Rooms || RoomIds.Distinct().Count() != Rooms || RoomIds.Any(id => id <= 0))
+                yield return new ValidationResult("Select a distinct room ID for each requested room.", [nameof(RoomIds)]);
             if (CheckOut <= CheckIn)
             {
                 yield return new ValidationResult(

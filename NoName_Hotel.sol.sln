@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NoName_Hotel.Domain", "NoNa
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NoName_Hotel.Tests", "NoName_Hotel.Tests\NoName_Hotel.Tests.csproj", "{69987A66-3053-4285-8D01-EF8C6A3A0F7D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NoName_Hotel.Infrastructure", "NoName_Hotel.Infrastructure\NoName_Hotel.Infrastructure.csproj", "{D30DD10D-BFD4-48DE-A1EA-B70559A7C070}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,6 +41,10 @@ Global
 		{69987A66-3053-4285-8D01-EF8C6A3A0F7D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{69987A66-3053-4285-8D01-EF8C6A3A0F7D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{69987A66-3053-4285-8D01-EF8C6A3A0F7D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D30DD10D-BFD4-48DE-A1EA-B70559A7C070}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D30DD10D-BFD4-48DE-A1EA-B70559A7C070}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D30DD10D-BFD4-48DE-A1EA-B70559A7C070}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D30DD10D-BFD4-48DE-A1EA-B70559A7C070}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

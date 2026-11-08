@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using NoName_Hotel.Domain.Data;
+using NoName_Hotel.Infrastructure.Data;
 namespace NoName_Hotel.api.Health;
 public sealed class DatabaseHealthCheck(NoName_hotel_DbContext db) : IHealthCheck
 {

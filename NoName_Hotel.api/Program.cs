@@ -1,13 +1,14 @@
+using Asp.Versioning;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.Build.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 using NoName_Hotel.api.Controllers.CachePolicies;
 using NoName_Hotel.api.Handlers;
 using NoName_Hotel.api.MiddleWare;
@@ -18,12 +19,14 @@ using NoName_Hotel.Application.Services;
 using NoName_Hotel.Application.Services.AuthServices;
 using NoName_Hotel.Common.Constants;
 using NoName_Hotel.Common.JWT;
-using NoName_Hotel.Domain.Data;
+using NoName_Hotel.Infrastructure.Data;
+using NoName_Hotel.Infrastructure.Repositories;
+using NoName_Hotel.Infrastructure.Storage;
+using NoName_Hotel.api.Filters;
 using NoName_Hotel.Domain.Entities.Models;
 using Serilog;
 using Serilog.Events;
 using System.Text;
-using System.Text.Json;
 using System.Threading.RateLimiting;
 
 
@@ -64,12 +67,6 @@ try
                 );
         });
 
-        if (builder.Environment.IsDevelopment())
-        {
-            options.EnableSensitiveDataLogging();
-            options.EnableDetailedErrors();
-        }
-
         options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
 
     }, poolSize: 250);
@@ -79,24 +76,25 @@ try
     //.AddRoles<IdentityRole>()
     //.AddEntityFrameworkStores<NoName_hotel_DbContext>()
     //.AddDefaultTokenProviders();
-    builder.Services.AddIdentityApiEndpoints<ApplicationUser>()
+    builder.Services.AddIdentityApiEndpoints<ApplicationUser>(options =>
+    {
+        options.Lockout.MaxFailedAccessAttempts = 5;
+        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+        options.User.RequireUniqueEmail = true;
+    })
         .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<NoName_hotel_DbContext>();
+    builder.Services.AddScoped<IUserStore<ApplicationUser>, TrackingUserStore>();
 
     builder.Services.AddHttpContextAccessor();
 
-    builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
-
-    var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>() ?? new JwtSettings();
-
-    if (string.IsNullOrWhiteSpace(jwtSettings.key))
-    {
-        throw new InvalidOperationException(
-            "JWT signing key is not configured. Set 'JwtSettings:key' in user secrets " +
-            "for Development or set the 'JwtSettings__key' environment variable.");
-    }
-
-
+    builder.Services.AddOptions<JwtSettings>()
+        .Bind(builder.Configuration.GetSection("JwtSettings"))
+        .Validate(settings => !string.IsNullOrWhiteSpace(settings.key) && Encoding.UTF8.GetByteCount(settings.key) >= 32,
+            "JWT signing key must contain at least 32 UTF-8 bytes. Configure user secrets or JwtSettings__key.")
+        .Validate(settings => int.TryParse(settings.DurationInMinutes, out var minutes) && minutes > 0,
+            "JWT duration must be a positive number of minutes.")
+        .ValidateOnStart();
 
     builder.Services.AddAuthentication(options =>
     {
@@ -104,23 +102,45 @@ try
         options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
         options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
     })
-        .AddJwtBearer(options =>
-        {
-            options.TokenValidationParameters = new TokenValidationParameters
-            {
-                ValidateIssuer = true,
-                ValidateAudience = true,
-                ValidateLifetime = true,
-                ValidateIssuerSigningKey = true,
-                ValidIssuer = jwtSettings.Issuer,
-                ValidAudience = jwtSettings.Audience,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.key)),
-                ClockSkew = TimeSpan.Zero //default is 5min
-            };
-        })
+        .AddJwtBearer()
         //.AddScheme<AuthenticationSchemeOptions, BaseAuthenticationHandler>(AuthenticationDefault.Basicscheme, _ => { });
         .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(AuthenticationDefault.ApiKeyScheme, _ => { });
 
+
+    builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+        .Configure<Microsoft.Extensions.Options.IOptions<JwtSettings>>((options, configured) =>
+        {
+            var settings = configured.Value;
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true, ValidateAudience = true, ValidateLifetime = true, ValidateIssuerSigningKey = true,
+                ValidIssuer = settings.Issuer, ValidAudience = settings.Audience,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.key)),
+                ClockSkew = TimeSpan.Zero
+            };
+            options.Events = new JwtBearerEvents
+            {
+                OnTokenValidated = async context =>
+                {
+                    var stamp = context.Principal?.FindFirst("security_stamp")?.Value;
+                    if (stamp is null) return; // Compatibility with previously issued sessions.
+                    var manager = context.HttpContext.RequestServices.GetRequiredService<UserManager<ApplicationUser>>();
+                    var id = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                    var user = id is null ? null : await manager.FindByIdAsync(id);
+                    if (user is null || user.SecurityStamp != stamp)
+                    {
+                        context.Fail("The session has been revoked.");
+                        return;
+                    }
+
+                    var sessionId = context.Principal?.FindFirst(BrowserSessionService.SessionIdClaim)?.Value;
+                    var sessions = context.HttpContext.RequestServices.GetRequiredService<BrowserSessionService>();
+                    if (sessionId is not null && (!Guid.TryParse(sessionId, out var sid)
+                        || !await sessions.IsActiveAsync(sid, user.Id)))
+                        context.Fail("The session has expired or been revoked.");
+                }
+            };
+        });
 
     builder.Services.AddAuthorization();
 
@@ -129,10 +149,18 @@ try
     builder.Services.AddScoped<ICountriesService, CountriesService>();
     builder.Services.AddScoped<IHotelService, HotelService>();
     builder.Services.AddScoped<IUserServices, UserServices>();
+    builder.Services.AddSingleton(TimeProvider.System);
+    builder.Services.AddScoped<BrowserSessionService>();
     builder.Services.AddScoped<IApiKeyValidatorService, ApiKeyValidatorService>();
     builder.Services.AddScoped<IBookingService, BookingService>();
-    
-    builder.Services.AddExceptionHandler<GlobalExceptionHandlers>();
+    builder.Services.AddScoped<IHotelRepository, HotelRepository>();
+    builder.Services.AddScoped<IBranchCatalogService, BranchCatalogService>();
+    builder.Services.AddScoped<IPhotoStorage, LocalPhotoStorage>();
+    builder.Services.AddScoped<AdministrationService>();
+    builder.Services.AddScoped<IHotelMailSender, HotelMailSender>();
+    builder.Services.AddScoped<CatalogCacheInvalidationFilter>();
+
+    builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
     builder.Services.AddProblemDetails();
 
 
@@ -141,7 +169,7 @@ try
     {
         cfg.AddProfile<HotelMappingProfile>();
         cfg.AddProfile<CountryMappingProfile>();
-        cfg.AddProfile<BookingMappingProfile>(); 
+        cfg.AddProfile<BookingMappingProfile>();
     });
 
     builder.Services.AddControllers()
@@ -152,12 +180,46 @@ try
         });
 
     builder.Services.AddEndpointsApiExplorer();
-    builder.Services.AddSwaggerGen();
+    builder.Services.AddSwaggerGen(options => options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "IGES Hotel and Suites API", Version = "v1",
+        Description = "Branch selection, room availability, reservations and hospitality catalogues."
+    }));
+    //builder.Services.AddSwaggerGen(opt =>
+    //{
+    //    //api info
+    //    opt.SwaggerDoc("v1", new OpenApiInfo
+    //    {
+    //        Version = "v1",
+    //        Title = "NoName_Hotel Api",
+    //        Description = "Api for managing hotels, countries and bookings",
+    //        Contact = new OpenApiContact
+    //        {
+    //            Name = "Support Team",
+    //            Email = "Support@Noname_hotel.com"
+    //        },
+    //        License = new OpenApiLicense
+    //        {
+    //            Name = "MIT License",
+    //            Url = new Uri("https://opensource.org/licenses/MIT")
+    //        }
+    //    });
+
+    //    opt.SwaggerDoc("v2", new OpenApiInfo
+    //    {
+    //        Version = "v2",
+    //        Title = "NoName_Hotel Api",
+    //        Description = "version 2 of the hotel api with enhances features"
+    //    });
+
+
+    //});
 
     //builder.Services.AddMemoryCache();    IN-MEMORY CACHING e.g RAM
     builder.Services.AddOutputCache(options =>
     {
-        options.AddPolicy(CacheConstants.AuthenticatedUserCachingPolicy, builder => {
+        options.AddPolicy(CacheConstants.AuthenticatedUserCachingPolicy, builder =>
+        {
             builder.AddPolicy<AuthenticatedUserCachingPolicy>()
             .SetCacheKeyPrefix(CacheConstants.AuthenticatedUserCachingPolicy)
             .Expire(TimeSpan.FromSeconds(CacheConstants.MediumDuration))
@@ -168,6 +230,16 @@ try
     //RATE LIMITER
     builder.Services.AddRateLimiter(options =>
     {
+        options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
+            {
+                Window = TimeSpan.FromMinutes(1), PermitLimit = 5, QueueLimit = 0
+            }));
+        options.AddPolicy("contact", context => RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
+            {
+                Window = TimeSpan.FromMinutes(1), PermitLimit = 5, QueueLimit = 0
+            }));
         options.AddFixedWindowLimiter("fixed", opt =>
         {
             opt.Window = TimeSpan.FromMinutes(5);
@@ -240,8 +312,33 @@ try
         setup.AddHealthCheckEndpoint("NoName_Hotel API", "/healths");
     }).AddInMemoryStorage();
 
+    builder.Services.AddApiVersioning(opt =>
+    {
+        opt.AssumeDefaultVersionWhenUnspecified = true;
+        opt.DefaultApiVersion = new ApiVersion(1, 0);
+        opt.ReportApiVersions = true;
+        opt.ApiVersionReader = new UrlSegmentApiVersionReader();
+    }).AddMvc().AddApiExplorer(opt =>
+    {
+        opt.GroupNameFormat = "'v'VVV";
+        opt.SubstituteApiVersionInUrl = true;
+    });
 
     var app = builder.Build();
+
+    // Explicit operator command; never a web endpoint or an automatic startup grant.
+    var grantIndex = Array.IndexOf(args, "--grant-system-admin");
+    if (grantIndex >= 0)
+    {
+        if (grantIndex + 1 >= args.Length) throw new ArgumentException("Supply the email of an existing registered account after --grant-system-admin.");
+        using var scope = app.Services.CreateScope();
+        var manager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await manager.FindByEmailAsync(args[grantIndex + 1]) ?? throw new InvalidOperationException("Register this account before granting system administrator access.");
+        var grant = await manager.AddToRoleAsync(user, RoleNames.Administrator);
+        if (!grant.Succeeded) throw new InvalidOperationException(string.Join(" ", grant.Errors.Select(e => e.Description)));
+        Log.Information("System administrator access granted to account {UserId}", user.Id);
+        return;
+    }
 
     app.UseExceptionHandler();
 
@@ -249,12 +346,12 @@ try
     {
         opt.MessageTemplate = "HTTP {RequestMethod} {RequestPath} Responded {StatusCode} in {Elapsed:0.0000}ms ";
 
-        opt.GetLevel = (httpContext, elapsed, ex) => ex != null 
-        ? LogEventLevel.Error 
-        : httpContext.Response.StatusCode >= 500 
-            ? LogEventLevel.Error 
-            : httpContext.Response.StatusCode >= 400 
-                 ? LogEventLevel.Warning 
+        opt.GetLevel = (httpContext, elapsed, ex) => ex != null
+        ? LogEventLevel.Error
+        : httpContext.Response.StatusCode >= 500
+            ? LogEventLevel.Error
+            : httpContext.Response.StatusCode >= 400
+                 ? LogEventLevel.Warning
                  : LogEventLevel.Information;
 
         opt.EnrichDiagnosticContext = (dianosticContext, HttpContext) =>
@@ -269,7 +366,6 @@ try
             }
         };
     });
-    app.MapGroup("api/default").MapIdentityApi<ApplicationUser>();
 
     // Configure the HTTP request pipeline.
     if (app.Environment.IsDevelopment())
@@ -279,6 +375,13 @@ try
     }
 
     app.UseHttpsRedirection();
+    var imageWebRoot = app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot");
+    Directory.CreateDirectory(Path.Combine(imageWebRoot, "uploads"));
+    app.Environment.WebRootPath = imageWebRoot;
+    var imageFiles = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(imageWebRoot);
+    app.Environment.WebRootFileProvider = imageFiles;
+    app.Lifetime.ApplicationStopped.Register(imageFiles.Dispose);
+    app.UseStaticFiles();
 
     //app.MapHealthChecks("/healths", new HealthCheckOptions
     //{
@@ -320,6 +423,8 @@ try
     {
         Predicate = _ => false
     });
+    app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
+    app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("db") });
 
     app.MapHealthChecks("/healths/ready", new HealthCheckOptions
     {
@@ -334,6 +439,8 @@ try
 
 
 
+    app.UseAuthentication();
+
     app.UseRateLimiter();
 
     app.UseAuthorization();
@@ -341,6 +448,12 @@ try
     app.UseOutputCache();
 
     app.MapControllers();
+
+    // Let React handle browser routes while preserving 404s for missing API routes and assets.
+    app.MapFallbackToFile("/", "index.html");
+    app.MapFallbackToFile(
+        "{*path:nonfile:regex(^(?!(api|assets|uploads|health|healths|healthchecks-ui|healthchecks-api)(/|$)))}",
+        "index.html");
 
     Log.Information("HotelApp API started successfully");
 

@@ -1,9 +1,10 @@
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 using NoName_Hotel.Application.Mappers;
 using NoName_Hotel.Application.Services;
-using NoName_Hotel.Domain.Data;
+using NoName_Hotel.Infrastructure.Data;
 using NoName_Hotel.Domain.Entities.Models;
 using Xunit;
 
@@ -48,5 +49,29 @@ public class ModelAndAvailabilityTests
         Assert.Contains("Guest", bookingSql);
         Assert.True(db.Model.FindEntityType(typeof(Booking))!.FindProperty(nameof(Booking.RowVersion))!.IsConcurrencyToken);
         Assert.Contains(db.Model.FindEntityType(typeof(ApiKey))!.GetIndexes(), i => i.IsUnique);
+    }
+
+    [Fact]
+    public void Infrastructure_preserves_migration_history_and_matches_the_current_model()
+    {
+        using var db = new NoName_hotel_DbContext(new DbContextOptionsBuilder<NoName_hotel_DbContext>()
+            .UseSqlServer("Server=unused;Database=unused;Integrated Security=True;TrustServerCertificate=True").Options);
+        var migrations = db.Database.GetMigrations().ToList();
+        Assert.Equal(12, migrations.Count);
+        Assert.Contains("20260923110457_FirstMigration", migrations);
+        Assert.Contains("20261024162737_StabilizeBookingsAndIndexes", migrations);
+        Assert.Contains("20261101124606_IgesBranchRoomsAndOfferings", migrations);
+        Assert.Contains("20261103092932_AdministrationWorkspace", migrations);
+        Assert.Contains("20261104043000_PopulateCountries", migrations);
+        Assert.Contains("20261104070132_BrowserSessionRenewal", migrations);
+        Assert.EndsWith("_HomepageHeroCarousel", migrations.Last());
+        Assert.False(db.Database.HasPendingModelChanges());
+        Assert.Equal("NoName_Hotel.Infrastructure", typeof(NoName_hotel_DbContext).Assembly.GetName().Name);
+        var script = db.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().GenerateScript(
+            "20261024162737_StabilizeBookingsAndIndexes", options: Microsoft.EntityFrameworkCore.Migrations.MigrationsSqlGenerationOptions.Idempotent);
+        Assert.Contains("CREATE TABLE [Rooms]", script);
+        Assert.Contains("CREATE TABLE [BookingRooms]", script);
+        Assert.Contains("INSERT INTO dbo.Countries", script);
+        Assert.DoesNotContain("DROP TABLE", script);
     }
 }

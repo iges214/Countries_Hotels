@@ -1,10 +1,49 @@
-@NoName_Hotel.api_HostAddress = https://localhost:7162
+@host = https://localhost:7162
+@branchId = 1
+@roomId = 1
+@token = paste-a-login-token-here
 
-GET {{NoName_Hotel.api_HostAddress}}/weatherforecast/
-Accept: application/json
+### Public hotel profile
+GET {{host}}/api/v1/hotel
 
-###
+### Choose a branch
+GET {{host}}/api/v1/branches?Location=Warri
 
-GET {{NoName_Hotel.api_HostAddress}}/api/countries
+### Find available rooms for the stay
+GET {{host}}/api/v1/branches/{{branchId}}/rooms?checkIn=2027-01-10&checkOut=2027-01-12&guests=2
 
-###
+### Room photos and specifications
+GET {{host}}/api/v1/branches/{{branchId}}/rooms/{{roomId}}?checkIn=2027-01-10&checkOut=2027-01-12
+
+### Twin beds: rooms 160–200 on the first floor
+GET {{host}}/api/v1/branches/{{branchId}}/rooms?checkIn=2027-01-10&checkOut=2027-01-12&isTwinRoom=true&guests=2
+
+### Honeymoon suites: VVIP third floor and Platinum highest floor
+GET {{host}}/api/v1/branches/{{branchId}}/rooms?checkIn=2027-01-10&checkOut=2027-01-12&isHoneymoonSuite=true&guests=2
+
+### Platinum honeymoon suites at their advertised room price
+GET {{host}}/api/v1/branches/{{branchId}}/rooms?checkIn=2027-01-10&checkOut=2027-01-12&isHoneymoonSuite=true&category=Platinum&guests=2
+
+### Kitchen menu
+GET {{host}}/api/v1/branches/{{branchId}}/offerings?kind=Meal
+
+### Pool and outdoor options: use Pool, OutdoorActivity, Bar or Lounge
+GET {{host}}/api/v1/branches/{{branchId}}/offerings?kind=Pool
+
+### Book a selected room after login (replace the sample dates/IDs)
+POST {{host}}/api/v1/branches/{{branchId}}/bookings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "hotelId": {{branchId}},
+  "checkIn": "2027-01-10",
+  "checkOut": "2027-01-12",
+  "guests": 2,
+  "rooms": 1,
+  "roomIds": [{{roomId}}]
+}
+
+### Branch administrator inventory
+GET {{host}}/api/v1/branches/{{branchId}}/admin/rooms
+Authorization: Bearer {{token}}
