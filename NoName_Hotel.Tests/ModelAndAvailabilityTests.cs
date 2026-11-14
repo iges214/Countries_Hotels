@@ -57,14 +57,14 @@ public class ModelAndAvailabilityTests
         using var db = new NoName_hotel_DbContext(new DbContextOptionsBuilder<NoName_hotel_DbContext>()
             .UseSqlServer("Server=unused;Database=unused;Integrated Security=True;TrustServerCertificate=True").Options);
         var migrations = db.Database.GetMigrations().ToList();
-        Assert.Equal(12, migrations.Count);
+        Assert.Equal(13, migrations.Count);
         Assert.Contains("20260923110457_FirstMigration", migrations);
         Assert.Contains("20261024162737_StabilizeBookingsAndIndexes", migrations);
         Assert.Contains("20261101124606_IgesBranchRoomsAndOfferings", migrations);
         Assert.Contains("20261103092932_AdministrationWorkspace", migrations);
         Assert.Contains("20261104043000_PopulateCountries", migrations);
         Assert.Contains("20261104070132_BrowserSessionRenewal", migrations);
-        Assert.EndsWith("_HomepageHeroCarousel", migrations.Last());
+        Assert.EndsWith("_ExplicitDefaultBranch", migrations.Last());
         Assert.False(db.Database.HasPendingModelChanges());
         Assert.Equal("NoName_Hotel.Infrastructure", typeof(NoName_hotel_DbContext).Assembly.GetName().Name);
         var script = db.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().GenerateScript(

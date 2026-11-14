@@ -11,7 +11,9 @@ public record GetHotelDto(
     string City,
     string State,
     string CurrencyCode,
-    string TimeZoneId)
+    string TimeZoneId,
+    bool IsActive,
+    bool IsDefaultBranch)
 {
     public string BrandName => NoName_Hotel.Domain.HotelBrand.Name;
     public string BrowserTimeZoneId => TimeZoneInfo.TryConvertWindowsIdToIanaId(TimeZoneId, out var iana) ? iana : TimeZoneId;

@@ -305,12 +305,19 @@ try
              failureStatus: HealthStatus.Unhealthy,
              tags: ["db", "sql"]);
 
-    builder.Services.AddHealthChecksUI(setup =>
+    // Continuous database probes can prevent serverless SQL from auto-pausing.
+    // Keep the polling dashboard local unless an operator explicitly enables it.
+    var healthChecksUiEnabled = builder.Configuration.GetValue<bool?>("Monitoring:EnableHealthChecksUI")
+        ?? builder.Environment.IsDevelopment();
+    if (healthChecksUiEnabled)
     {
-        setup.SetEvaluationTimeInSeconds(10); //checks eveery 10secs
-        setup.MaximumHistoryEntriesPerEndpoint(50);
-        setup.AddHealthCheckEndpoint("NoName_Hotel API", "/healths");
-    }).AddInMemoryStorage();
+        builder.Services.AddHealthChecksUI(setup =>
+        {
+            setup.SetEvaluationTimeInSeconds(10);
+            setup.MaximumHistoryEntriesPerEndpoint(50);
+            setup.AddHealthCheckEndpoint("NoName_Hotel API", "/healths");
+        }).AddInMemoryStorage();
+    }
 
     builder.Services.AddApiVersioning(opt =>
     {
@@ -431,11 +438,14 @@ try
         Predicate = check => check.Tags.Contains("db")
     });
 
-    app.MapHealthChecksUI(opt =>
+    if (healthChecksUiEnabled)
     {
-        opt.UIPath = "/healthchecks-ui";
-        opt.ApiPath = "/healthchecks-Api";
-    });
+        app.MapHealthChecksUI(opt =>
+        {
+            opt.UIPath = "/healthchecks-ui";
+            opt.ApiPath = "/healthchecks-Api";
+        });
+    }
 
 
 

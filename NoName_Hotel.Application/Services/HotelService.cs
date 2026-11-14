@@ -49,6 +49,35 @@ public class HotelService(IHotelRepository context, ICountriesService countriesS
         return dto is null ? Result<GetHotelDto>.Failure(new Error(ErrorCodes.NotFound, "Hotel not found."))
             : Result<GetHotelDto>.Success(dto);
     }
+    public async Task<Result<GetHotelDto>> GetDefaultBranchAsync()
+    {
+        var branch = await context.Query<Hotel>().Where(h => h.IsActive)
+            .OrderByDescending(h => h.IsDefaultBranch).ThenBy(h => h.Id)
+            .ProjectTo<GetHotelDto>(mapper.ConfigurationProvider).FirstOrDefaultAsync();
+        return branch is null ? Result<GetHotelDto>.Failure(new Error(ErrorCodes.NotFound, "No active branches are available."))
+            : Result<GetHotelDto>.Success(branch);
+    }
+    public Task<Result> SetDefaultBranchAsync(int id) => context.ExecuteSerializableAsync(async () =>
+    {
+        var target = await context.LockBranchAsync(id);
+        if (target is null) return Result.NotFound(new Error(ErrorCodes.NotFound, "Branch not found."));
+        if (!target.IsActive) return Result.BadRequest(new Error(ErrorCodes.Validation, "An inactive branch cannot be the default."));
+        var currentDefaults = await context.Query<Hotel>(true).Where(h => h.IsDefaultBranch).ToListAsync();
+        foreach (var branch in currentDefaults) branch.IsDefaultBranch = false;
+        if (currentDefaults.Count > 0) await context.SaveChangesAsync();
+        target.IsDefaultBranch = true;
+        await context.SaveChangesAsync();
+        return Result.Success();
+    });
+    public Task<Result> SetBranchActiveAsync(int id, bool isActive) => context.ExecuteSerializableAsync(async () =>
+    {
+        var branch = await context.LockBranchAsync(id);
+        if (branch is null) return Result.NotFound(new Error(ErrorCodes.NotFound, "Branch not found."));
+        branch.IsActive = isActive;
+        if (!isActive) branch.IsDefaultBranch = false;
+        await context.SaveChangesAsync();
+        return Result.Success();
+    });
     public async Task<Result<GetHotelDto>> CreateHotelAsync(CreateHotelDto dto)
     {
         var errors = DtoValidation.Errors(dto);

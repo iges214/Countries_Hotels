@@ -235,3 +235,13 @@ Failed logins lock accounts for 15 minutes after 5 attempts; authentication endp
 rate limit. `/health/live` and `/health/ready` retain the existing `/healths` aliases. Unexpected
 exceptions return sanitized ProblemDetails with a trace ID. Country output caching remains
 process-local; room availability is not cached.
+
+The health dashboard's background polling is enabled by default only in Development.
+Production and staging do not register its collector or dashboard routes unless
+`Monitoring__EnableHealthChecksUI=true` is explicitly set. Set it to `false` to disable
+polling in any environment. On free/serverless Azure SQL, leave it disabled: probes
+every ten seconds can keep SQL active and consume the monthly free compute allowance.
+Use `/health/live` for routine uptime checks; `/health/ready` and `/healths` query SQL
+on demand and should not be used as frequent external keep-alive probes. Disabling
+polling does not restore an exhausted monthly allowance or guarantee that real usage
+will fit within that allowance.

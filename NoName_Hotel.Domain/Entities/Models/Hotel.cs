@@ -5,6 +5,8 @@ namespace NoName_Hotel.Domain.Entities.Models
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
+        public bool IsActive { get; set; } = true;
+        public bool IsDefaultBranch { get; set; }
         public string Address { get; set; } = string.Empty;
         public double Rating { get; set; }
         public decimal PerNightRate { get; set; }

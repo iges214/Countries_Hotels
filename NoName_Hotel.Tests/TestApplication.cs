@@ -20,16 +20,22 @@ public sealed class TestApplication : WebApplicationFactory<Program>
 {
     private readonly SqliteConnection connection = new("Data Source=:memory:");
     private readonly TimeProvider? clock;
+    private readonly string environment;
+    private readonly bool? healthChecksUiEnabled;
 
-    public TestApplication(TimeProvider? clock = null)
+    public TestApplication(TimeProvider? clock = null, string environment = "Development", bool? healthChecksUiEnabled = null)
     {
         this.clock = clock;
+        this.environment = environment;
+        this.healthChecksUiEnabled = healthChecksUiEnabled;
         connection.Open();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Development");
+        builder.UseEnvironment(environment);
+        if (healthChecksUiEnabled.HasValue)
+            builder.UseSetting("Monitoring:EnableHealthChecksUI", healthChecksUiEnabled.Value.ToString());
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["JwtSettings:key"] = "IGES-Tests-Only-Signing-Key-At-Least-32-Bytes!"

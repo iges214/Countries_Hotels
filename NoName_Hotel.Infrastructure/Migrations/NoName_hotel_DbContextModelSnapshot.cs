@@ -17,7 +17,7 @@ namespace NoName_Hotel.Infrastructure.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.22")
+                .HasAnnotation("ProductVersion", "10.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -597,6 +597,12 @@ namespace NoName_Hotel.Infrastructure.Migrations
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)");
 
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDefaultBranch")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -627,6 +633,11 @@ namespace NoName_Hotel.Infrastructure.Migrations
                     b.HasIndex("CountryId")
                         .HasDatabaseName("IX_Hotels_CountryId");
 
+                    b.HasIndex("IsDefaultBranch")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Hotels_ActiveDefaultBranch")
+                        .HasFilter("[IsDefaultBranch] = 1 AND [IsActive] = 1");
+
                     b.HasIndex("Name")
                         .HasDatabaseName("IX_Hotels_Name");
 
@@ -636,7 +647,10 @@ namespace NoName_Hotel.Infrastructure.Migrations
                     b.HasIndex("CountryId", "Rating")
                         .HasDatabaseName("IX_Hotels_CountryId_Rating");
 
-                    b.ToTable("Hotels");
+                    b.ToTable("Hotels", t =>
+                        {
+                            t.HasCheckConstraint("CK_Hotels_DefaultBranchMustBeActive", "[IsDefaultBranch] = 0 OR [IsActive] = 1");
+                        });
                 });
 
             modelBuilder.Entity("NoName_Hotel.Domain.Entities.Models.HotelAdmin", b =>

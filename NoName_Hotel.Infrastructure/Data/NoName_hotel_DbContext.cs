@@ -51,6 +51,11 @@ namespace NoName_Hotel.Infrastructure.Data
             builder.Entity<Hotel>().Property(h => h.Address).HasMaxLength(150);
             builder.Entity<ApiKey>().HasIndex(k => k.Key).IsUnique();
             builder.Entity<Hotel>().HasIndex(h => new { h.CountryId, h.Name }).IsUnique();
+            builder.Entity<Hotel>().ToTable(t => t.HasCheckConstraint(
+                "CK_Hotels_DefaultBranchMustBeActive", "[IsDefaultBranch] = 0 OR [IsActive] = 1"));
+            builder.Entity<Hotel>().HasIndex(h => h.IsDefaultBranch).IsUnique()
+                .HasFilter("[IsDefaultBranch] = 1 AND [IsActive] = 1")
+                .HasDatabaseName("IX_Hotels_ActiveDefaultBranch");
 
             builder.Entity<Country>()
                 .HasIndex(e => e.Name)

@@ -15,6 +15,9 @@ namespace NoName_Hotel.Application.Contracts
         Task<Result<PageResult<GetHotelDto>>> GetHotelsAsync(
             PaginationParameters paginationParameters, HotelFilterParameters hotelFilterParameters);
         Task<Result<GetHotelDto>> GetHotelAsync(int id);
+        Task<Result<GetHotelDto>> GetDefaultBranchAsync();
+        Task<Result> SetDefaultBranchAsync(int id);
+        Task<Result> SetBranchActiveAsync(int id, bool isActive);
         Task<Result<GetHotelDto>> CreateHotelAsync(CreateHotelDto createDto);
         Task<Result> UpdateHotelAsync(int id, UpdateHotelDto updateDto);
         Task<Result> DeleteHotelAsync(int id);

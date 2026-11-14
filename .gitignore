@@ -6,6 +6,7 @@
 # User-specific files
 NoName_Hotel.api/wwwroot/uploads/*
 !NoName_Hotel.api/wwwroot/uploads/.gitkeep
+NoName_Hotel.api/appsettings.Production.json
 *.rsuser
 *.suo
 *.user

@@ -41,10 +41,15 @@ namespace NoName_Hotel.api.Controllers
             return ToActionResult(result);
         }
 
+        [HttpGet("default")]
+        [AllowAnonymous]
+        public async Task<ActionResult<GetHotelDto>> GetDefaultBranch() =>
+            ToActionResult(await hotelService.GetDefaultBranchAsync());
 
 
 
-        [HttpGet("{id}")]
+
+        [HttpGet("{id:int}")]
         [AllowAnonymous]
         public async Task<ActionResult<GetHotelDto>> GetHotel(int id)
         {
@@ -52,6 +57,16 @@ namespace NoName_Hotel.api.Controllers
 
             return ToActionResult(hotel);
         }
+
+        [HttpPost("{id:int}/default")]
+        [Authorize(Roles = RoleNames.Administrator)]
+        public async Task<IActionResult> SetDefaultBranch(int id) =>
+            ToActionResult(await hotelService.SetDefaultBranchAsync(id));
+
+        [HttpPut("{id:int}/active")]
+        [Authorize(Roles = RoleNames.Administrator)]
+        public async Task<IActionResult> SetBranchActive(int id, SetBranchActiveDto dto) =>
+            ToActionResult(await hotelService.SetBranchActiveAsync(id, dto.IsActive));
 
         [HttpPut("{id}")]
         [HotelOrSystemAdmin]
@@ -87,4 +102,6 @@ namespace NoName_Hotel.api.Controllers
 
 
     }
+
+    public sealed record SetBranchActiveDto(bool IsActive);
 }
