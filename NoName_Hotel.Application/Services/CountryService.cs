@@ -25,7 +25,7 @@ namespace NoName_Hotel.Application.Services
                 var term = countryFilterParameters.Search.Trim();
 
                 query = query.Where(a => EF.Functions.Like(a.Name, $"%{term}%") ||
-                        EF.Functions.Like(a.ShortName, $"%{term}$"));
+                        EF.Functions.Like(a.ShortName, $"%{term}%"));
             }
             var countries = await query
                 .AsNoTracking()
@@ -152,14 +152,14 @@ namespace NoName_Hotel.Application.Services
                 .SingleAsync();
 
             var HotelsQuery = context.Query<Hotel>()
-                .Where(a => a.CountryId == countryId)
+                .Where(a => a.CountryId == countryId && a.IsActive)
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(countryFilterParameters.Search))
             {
                 var terms = countryFilterParameters.Search.Trim();
 
-                HotelsQuery = HotelsQuery.Where(a => EF.Functions.Like(a.Name, $"%{terms}$"));
+                HotelsQuery = HotelsQuery.Where(a => EF.Functions.Like(a.Name, $"%{terms}%"));
             }
 
             HotelsQuery = (countryFilterParameters.SortBy?.Trim().ToLowerInvariant()) switch

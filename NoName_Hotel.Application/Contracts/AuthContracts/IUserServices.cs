@@ -12,5 +12,7 @@ namespace NoName_Hotel.Application.Contracts.AuthContracts
         Task<Result<AccountDto>> GetAccountAsync();
         Task<Result> UpdateAccountAsync(UpdateAccountDto dto);
         Task<Result> ChangePasswordAsync(ChangePasswordDto dto);
+        Task<Result> ForgotPasswordAsync(ForgotPasswordDto dto, CancellationToken cancellationToken = default);
+        Task<Result> ResetPasswordAsync(ResetPasswordDto dto);
     }
 }

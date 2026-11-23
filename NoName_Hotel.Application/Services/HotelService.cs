@@ -13,9 +13,11 @@ using NoName_Hotel.Domain.Entities.Models;
 namespace NoName_Hotel.Application.Services;
 public class HotelService(IHotelRepository context, ICountriesService countriesService, IMapper mapper) : IHotelService
 {
-    public async Task<Result<PageResult<GetHotelDto>>> GetHotelsAsync(PaginationParameters page, HotelFilterParameters f)
+    public async Task<Result<PageResult<GetHotelDto>>> GetHotelsAsync(PaginationParameters page, HotelFilterParameters f,
+        bool includeInactive = false, string? administratorId = null)
     {
-        var query = context.Query<Hotel>().AsQueryable();
+        var query = context.Query<Hotel>().Where(h => includeInactive || h.IsActive);
+        if (administratorId is not null) query = query.Where(h => h.Admins.Any(a => a.UserId == administratorId));
         if (f.CountryId.HasValue) query = query.Where(h => h.CountryId == f.CountryId);
         if (f.MinRating.HasValue) query = query.Where(h => h.Rating >= f.MinRating);
         if (f.MaxRating.HasValue) query = query.Where(h => h.Rating <= f.MaxRating);
@@ -42,9 +44,9 @@ public class HotelService(IHotelRepository context, ICountriesService countriesS
         return Result<PageResult<GetHotelDto>>.Success(await sorted.ThenBy(h => h.Id)
             .ProjectTo<GetHotelDto>(mapper.ConfigurationProvider).ToPageResultAsync(page));
     }
-    public async Task<Result<GetHotelDto>> GetHotelAsync(int id)
+    public async Task<Result<GetHotelDto>> GetHotelAsync(int id, bool includeInactive = false)
     {
-        var dto = await context.Query<Hotel>().Where(h => h.Id == id)
+        var dto = await context.Query<Hotel>().Where(h => h.Id == id && (includeInactive || h.IsActive))
             .ProjectTo<GetHotelDto>(mapper.ConfigurationProvider).FirstOrDefaultAsync();
         return dto is null ? Result<GetHotelDto>.Failure(new Error(ErrorCodes.NotFound, "Hotel not found."))
             : Result<GetHotelDto>.Success(dto);

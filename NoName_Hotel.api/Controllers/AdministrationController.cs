@@ -81,7 +81,8 @@ public sealed class AdministrationController(IHotelRepository repo, Administrati
     [HttpGet("administrators")]
     public async Task<IActionResult> Administrators(int hotelId)
     {
-        var assignments = await repo.Query<HotelAdmin>().Where(a => a.HotelId == hotelId).Include(a => a.User).OrderBy(a => a.Id)
+        var assignments = await repo.Query<HotelAdmin>().Where(a => 
+        a.HotelId == hotelId).Include(a => a.User).OrderBy(a => a.Id)
             .Select(a => new { a.Id, a.UserId, a.User!.FirstName, a.User.LastName, a.User.Email }).ToListAsync();
         return Ok(assignments);
     }
@@ -90,7 +91,9 @@ public sealed class AdministrationController(IHotelRepository repo, Administrati
     public async Task<IActionResult> Assign(int hotelId, AssignAdministratorDto dto)
     {
         var user = await users.FindByEmailAsync(dto.Email.Trim());
-        if (user is null) return BadRequest(new { error = "No registered account has this email address. Ask the team member to register first." });
+        if (user is null) return BadRequest(new 
+        { error = "No registered account has this email address. Ask the team member to register first." }
+        );
         return await repo.ExecuteSerializableAsync<IActionResult>(async () =>
         {
             if (await repo.LockBranchAsync(hotelId) is null) return NotFound();

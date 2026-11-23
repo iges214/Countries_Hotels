@@ -31,6 +31,16 @@ namespace NoName_Hotel.api.Controllers.Auth
             return SessionResponse(result.Value!);
         }
 
+        [AllowAnonymous, EnableRateLimiting("auth")]
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword(ForgotPasswordDto dto, CancellationToken cancellationToken) =>
+            ToActionResult(await userServices.ForgotPasswordAsync(dto, cancellationToken));
+
+        [AllowAnonymous, EnableRateLimiting("auth")]
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword(ResetPasswordDto dto) =>
+            ToActionResult(await userServices.ResetPasswordAsync(dto));
+
         [AllowAnonymous]
         [HttpPost("session/{sessionId:guid}/refresh")]
         public async Task<ActionResult<string>> Refresh(Guid sessionId, RefreshRequest request)

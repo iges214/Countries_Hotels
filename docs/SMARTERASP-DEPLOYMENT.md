@@ -17,7 +17,10 @@ The API uses SQL Server and does not run migrations automatically at startup.
    `ConnectionStrings.NoName_HotelDbConnectionString` and a newly generated random secret of at
    least 32 UTF-8 bytes in `JwtSettings.key`. Generate one in PowerShell with
    `[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(64))`.
-   This production file is ignored by Git.
+   This production file is ignored by Git. Set `PasswordReset.FrontendUrl` to the public site
+   origin and configure `HotelMail` with the SMTP host, port, verified sender, username, and
+   password. Without both settings, reset requests still return a generic response but no email
+   can be delivered.
 
 ## Build the deploy package
 

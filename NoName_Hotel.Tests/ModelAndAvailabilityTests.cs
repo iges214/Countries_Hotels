@@ -1,6 +1,8 @@
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Logging.Abstractions;
 using NoName_Hotel.Application.Mappers;
 using NoName_Hotel.Application.Services;
@@ -50,6 +52,35 @@ public class ModelAndAvailabilityTests
         Assert.True(db.Model.FindEntityType(typeof(Booking))!.FindProperty(nameof(Booking.RowVersion))!.IsConcurrencyToken);
         Assert.Contains(db.Model.FindEntityType(typeof(ApiKey))!.GetIndexes(), i => i.IsUnique);
     }
+
+    [Fact]
+    public void Seeded_roles_do_not_generate_random_concurrency_stamps()
+    {
+        using var db = new NoName_hotel_DbContext(new DbContextOptionsBuilder<NoName_hotel_DbContext>()
+            .UseSqlServer("Server=unused;Database=unused;Integrated Security=True;TrustServerCertificate=True").Options);
+        var roles = db.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(IdentityRole))!.GetSeedData().ToList();
+        Assert.Equal(3, roles.Count);
+        Assert.All(roles, role =>
+        {
+            role.TryGetValue(nameof(IdentityRole.ConcurrencyStamp), out var stamp);
+            Assert.Null(stamp);
+        });
+    }
+
+    [Fact]
+    public void AutoMapper_limits_recursion_through_record_constructor_parameters()
+    {
+        var configuration = new MapperConfiguration(c => c.CreateMap<RecursiveRecord, RecursiveRecord>().MaxDepth(8),
+            NullLoggerFactory.Instance);
+        var source = new RecursiveRecord(0, null);
+        for (var i = 0; i < 100; i++) source = new RecursiveRecord(i, source);
+        var mapped = configuration.CreateMapper().Map<RecursiveRecord>(source);
+        var depth = 0;
+        for (var current = mapped; current is not null; current = current.Next) depth++;
+        Assert.InRange(depth, 1, 8);
+    }
+
+    private sealed record RecursiveRecord(int Value, RecursiveRecord? Next);
 
     [Fact]
     public void Infrastructure_preserves_migration_history_and_matches_the_current_model()

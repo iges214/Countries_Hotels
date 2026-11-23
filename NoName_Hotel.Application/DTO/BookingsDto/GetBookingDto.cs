@@ -18,6 +18,7 @@ namespace NoName_Hotel.Application.DTO.BookingsDto
     )
     {
         public bool IsCheckedIn { get; init; }
+        public byte[] RowVersion { get; init; } = [];
         public bool IsCheckedOut { get; init; }
         public string TimeZoneId { get; init; } = "Africa/Lagos";
     }

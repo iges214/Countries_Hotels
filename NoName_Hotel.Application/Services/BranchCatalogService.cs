@@ -58,7 +58,7 @@ public sealed class BranchCatalogService(IHotelRepository repo) : IBranchCatalog
         var errors = DtoValidation.Errors(search);
         if (errors.Length > 0) return Result<PageResult<RoomDto>>.BadRequest(errors);
         var branch = await repo.Query<Hotel>().FirstOrDefaultAsync(h => h.Id == hotelId);
-        if (branch is null) return Fail<PageResult<RoomDto>>(ErrorCodes.NotFound, "Branch not found.");
+        if (branch is null || !branch.IsActive) return Fail<PageResult<RoomDto>>(ErrorCodes.NotFound, "Branch not found.");
         if (search.CheckIn < BranchClock.Today(branch)) return Fail<PageResult<RoomDto>>(ErrorCodes.Validation, "Check-in cannot be in the past in this branch.");
         var query = await AvailableRooms(branch, search);
         return Result<PageResult<RoomDto>>.Success(await RoomPage(query, page, branch.CurrencyCode));
@@ -69,7 +69,7 @@ public sealed class BranchCatalogService(IHotelRepository repo) : IBranchCatalog
         var errors = DtoValidation.Errors(search);
         if (errors.Length > 0) return Result<RoomDto>.BadRequest(errors);
         var branch = await repo.Query<Hotel>().FirstOrDefaultAsync(h => h.Id == hotelId);
-        if (branch is null) return Fail<RoomDto>(ErrorCodes.NotFound, "Branch not found.");
+        if (branch is null || !branch.IsActive) return Fail<RoomDto>(ErrorCodes.NotFound, "Branch not found.");
         if (search.CheckIn < BranchClock.Today(branch)) return Fail<RoomDto>(ErrorCodes.Validation, "Check-in cannot be in the past in this branch.");
         var query = await AvailableRooms(branch, search);
         var room = await query.Include(r => r.Photos).FirstOrDefaultAsync(r => r.Id == roomId);
@@ -163,7 +163,7 @@ public sealed class BranchCatalogService(IHotelRepository repo) : IBranchCatalog
     {
         if (kind.HasValue && !Enum.IsDefined(kind.Value)) return Fail<PageResult<OfferingDto>>(ErrorCodes.Validation, "Invalid offering category.");
         var branch = await repo.Query<Hotel>().FirstOrDefaultAsync(h => h.Id == hotelId);
-        if (branch is null) return Fail<PageResult<OfferingDto>>(ErrorCodes.NotFound, "Branch not found.");
+        if (branch is null || (!admin && !branch.IsActive)) return Fail<PageResult<OfferingDto>>(ErrorCodes.NotFound, "Branch not found.");
         var query = repo.Query<BranchOffering>().Where(o => o.HotelId == hotelId && (admin || o.IsPublished));
         if (kind.HasValue) query = query.Where(o => o.Kind == kind);
         if (!string.IsNullOrWhiteSpace(search)) query = query.Where(o => o.Name.Contains(search.Trim()) || o.Description.Contains(search.Trim()));

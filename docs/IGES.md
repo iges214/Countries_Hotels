@@ -41,6 +41,17 @@ Use EF CLI 9.x with EF Core 9. Swagger is available at `/swagger` in Development
 No signing key is shipped in appsettings.json; use user secrets or `JwtSettings__key` (at least
 32 UTF-8 bytes). Startup does not automatically migrate the database.
 
+AutoMapper is pinned to 16.3.0 for the November 2026 recursion security fixes. This has the
+same RPL/commercial dual-license model as the prior 16.2.0 dependency. Confirm the hotel's
+license entitlement before deployment; this project does not provide or purchase a license.
+See the [vendor license](https://github.com/LuckyPennySoftware/AutoMapper/blob/v16.3.0/LICENSE.md)
+and [license configuration](https://docs.automapper.io/en/latest/License-configuration.html).
+
+Identity role seed metadata explicitly leaves concurrency stamps null to match the existing
+snapshot. Constructing roles with random stamps otherwise produces false pending-model
+changes. This correction requires no new migration and does not alter existing database
+role stamps; normal Identity role updates continue to manage their concurrency stamps.
+
 All old migrations moved to Infrastructure with their IDs intact. Continue using the existing
 database and `__EFMigrationsHistory`. The new `IgesBranchRoomsAndOfferings` migration adds location,
 currency/time zone, rooms, photos, booking-room assignments and hospitality listings. It does not
@@ -69,6 +80,18 @@ accepting reservations. Currency cannot change after a branch has bookings.
 These reads do not require login. `Name` is the branch display name; `BrandName` identifies IGES.
 Room/offerings lists support `pageNumber` and `pageSize`. Existing `/api/v1/hotels` and unversioned
 hotel routes remain compatible aliases. Country endpoints remain available.
+
+Inactive branches are excluded from public branch lists (including country discovery), room
+availability/detail and offering catalogues. Direct creation of a new reservation returns 409
+after checking the active flag under the branch write lock. Existing reservations are retained:
+their owners can still read branch details and view, edit or cancel their reservations, and
+authorized staff can manage inventory, confirm reservations and record check-in/out.
+
+The administration dashboard requests `GET /api/v1/branches?includeInactive=true` with a bearer
+token so inactive branches can be managed or reactivated. Anonymous callers receive 401 and
+ordinary guests receive 403. System administrators see all branches; assigned administrators
+see only their assigned branches. An inactive branch's ordinary detail route returns 404 unless
+the authenticated caller is a system/assigned administrator or owns a reservation there.
 
 Example room search:
 
@@ -221,6 +244,20 @@ These endpoints support discovery; food ordering and pool/activity ticket reserv
 
 ## Verification and operations
 
+Password recovery uses anonymous `POST /api/v1/auth/forgot-password` (`email`) and
+`POST /api/v1/auth/reset-password` (`email`, `token`, `newPassword`). Configure
+`PasswordReset:FrontendUrl` and `HotelMail` for delivery. Generated links preserve the
+frontend base path and URL-encode the account email and Identity token. Forgot-password
+responses do not reveal whether an account exists or whether mail is configured/delivered;
+invalid reset responses also use a uniform message. Identity validates token lifetime,
+purpose, account and security stamp. A successful reset persists a new password/security
+stamp together, invalidating previous reset tokens and the account's access/refresh sessions.
+Email verification remains unavailable. Isolated recovery tests capture email locally;
+real SMTP delivery still requires staging verification.
+
+Country search matches substrings of names and short names. Country hotel searches retain
+country/activity restrictions, sorting and pagination while matching substrings of hotel names.
+
 ```powershell
 dotnet test NoName_Hotel.sol.sln
 dotnet ef migrations has-pending-model-changes --project NoName_Hotel.Infrastructure --startup-project NoName_Hotel.api
@@ -236,10 +273,15 @@ rate limit. `/health/live` and `/health/ready` retain the existing `/healths` al
 exceptions return sanitized ProblemDetails with a trace ID. Country output caching remains
 process-local; room availability is not cached.
 
-The health dashboard's background polling is enabled by default only in Development.
+The packaged Development configuration disables the health dashboard's background polling.
+If the setting is absent, the code enables it only in Development.
 Production and staging do not register its collector or dashboard routes unless
 `Monitoring__EnableHealthChecksUI=true` is explicitly set. Set it to `false` to disable
-polling in any environment. On free/serverless Azure SQL, leave it disabled: probes
+polling in any environment. Its in-memory storage provider is pinned to the application's
+EF Core version so enabling monitoring can initialize storage successfully.
+HealthChecks UI 9 also requires the explicit IdentityModel reference for report collection;
+the newer KubernetesClient security override no longer supplies that dependency.
+On free/serverless Azure SQL, leave it disabled: probes
 every ten seconds can keep SQL active and consume the monthly free compute allowance.
 Use `/health/live` for routine uptime checks; `/health/ready` and `/healths` query SQL
 on demand and should not be used as frequent external keep-alive probes. Disabling

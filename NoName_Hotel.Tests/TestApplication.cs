@@ -18,13 +18,19 @@ namespace NoName_Hotel.Tests;
 
 public sealed class TestApplication : WebApplicationFactory<Program>
 {
-    private readonly SqliteConnection connection = new("Data Source=:memory:");
+    private readonly SqliteConnection connection;
+    private readonly string? fileConnectionString;
     private readonly TimeProvider? clock;
     private readonly string environment;
     private readonly bool? healthChecksUiEnabled;
 
-    public TestApplication(TimeProvider? clock = null, string environment = "Development", bool? healthChecksUiEnabled = null)
+    public TestApplication(TimeProvider? clock = null, string environment = "Development", bool? healthChecksUiEnabled = null, string? databasePath = null)
     {
+        fileConnectionString = databasePath is null ? null : new SqliteConnectionStringBuilder
+        {
+            DataSource = databasePath, DefaultTimeout = 30
+        }.ToString();
+        connection = new SqliteConnection(fileConnectionString ?? "Data Source=:memory:");
         this.clock = clock;
         this.environment = environment;
         this.healthChecksUiEnabled = healthChecksUiEnabled;
@@ -48,9 +54,13 @@ public sealed class TestApplication : WebApplicationFactory<Program>
                 services.AddSingleton(clock);
             }
             services.RemoveAll<NoName_hotel_DbContext>();
-            services.AddScoped<NoName_hotel_DbContext>(_ => new TestDbContext(
-                new DbContextOptionsBuilder<NoName_hotel_DbContext>().UseSqlite(connection)
-                    .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking).Options));
+            services.AddScoped<NoName_hotel_DbContext>(_ =>
+            {
+                var options = new DbContextOptionsBuilder<NoName_hotel_DbContext>();
+                if (fileConnectionString is null) options.UseSqlite(connection);
+                else options.UseSqlite(fileConnectionString);
+                return new TestDbContext(options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking).Options);
+            });
         });
     }
 
@@ -105,9 +115,19 @@ public sealed class TestApplication : WebApplicationFactory<Program>
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
-            // SQLite has no SQL Server rowversion generator. SQL-specific concurrency is checked separately.
-            builder.Entity<Booking>().Property(b => b.RowVersion).IsConcurrencyToken(false)
+            // SQLite has no SQL Server rowversion generator. Generate equivalent test
+            // versions below while retaining EF's real concurrency predicate.
+            builder.Entity<Booking>().Property(b => b.RowVersion).IsConcurrencyToken()
                 .ValueGeneratedNever();
+        }
+
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            ChangeTracker.DetectChanges();
+            foreach (var entry in ChangeTracker.Entries<Booking>().Where(entry =>
+                entry.State is EntityState.Added or EntityState.Modified))
+                entry.Entity.RowVersion = System.Security.Cryptography.RandomNumberGenerator.GetBytes(8);
+            return base.SaveChangesAsync(cancellationToken);
         }
     }
 }

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
+using NoName_Hotel.Application.Contracts;
 using NoName_Hotel.Application.Contracts.AuthContracts;
 using NoName_Hotel.Application.DTO.AuthDto;
 using NoName_Hotel.Application.Validation;
@@ -11,7 +13,8 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 namespace NoName_Hotel.Application.Services.AuthServices;
 public class UserServices(UserManager<ApplicationUser> userManager, BrowserSessionService sessions,
-    IHttpContextAccessor httpContext, ILogger<UserServices> logger) : IUserServices
+    IHttpContextAccessor httpContext, ILogger<UserServices> logger, IHotelMailSender mail,
+    IConfiguration configuration) : IUserServices
 {
     public async Task<Result<RegisteredUserDto>> RegisterAsync(RegisterUserDto dto)
     {
@@ -110,6 +113,56 @@ public class UserServices(UserManager<ApplicationUser> userManager, BrowserSessi
         var user = await userManager.FindByIdAsync(UserId);
         if (user is null) return Result.NotFound(AccountNotFound);
         return AccountChangeResult(await userManager.ChangePasswordAsync(user, dto.CurrentPassword, dto.NewPassword));
+    }
+
+    public async Task<Result> ForgotPasswordAsync(ForgotPasswordDto dto, CancellationToken cancellationToken = default)
+    {
+        // Always return success so callers cannot use this endpoint to enumerate accounts.
+        var user = await userManager.FindByEmailAsync(dto.Email.Trim());
+        if (user is null || string.IsNullOrWhiteSpace(user.Email)) return Result.Success();
+
+        var frontendUrl = configuration["PasswordReset:FrontendUrl"]?.Trim().TrimEnd('/');
+        if (!Uri.TryCreate(frontendUrl, UriKind.Absolute, out var baseUri)
+            || baseUri.Scheme is not ("https" or "http") || !mail.IsConfigured)
+        {
+            logger.LogWarning("Password reset email could not be sent because frontend URL or mail delivery is not configured.");
+            return Result.Success();
+        }
+
+        var token = await userManager.GeneratePasswordResetTokenAsync(user);
+        var resetUrl = new UriBuilder(baseUri)
+        {
+            Path = baseUri.AbsolutePath.TrimEnd('/') + "/reset-password",
+            Query = $"email={Uri.EscapeDataString(user.Email)}&token={Uri.EscapeDataString(token)}",
+            Fragment = ""
+        }.Uri.AbsoluteUri;
+        try
+        {
+            await mail.SendAsync(user.Email, "Reset your IGES Hotel password",
+                $"Use this link to choose a new password. The link expires and can only be used once:\n\n{resetUrl}\n\nIf you did not request this, you can ignore this email.",
+                cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Password reset email delivery failed for user {UserId}.", user.Id);
+        }
+        return Result.Success();
+    }
+
+    public async Task<Result> ResetPasswordAsync(ResetPasswordDto dto)
+    {
+        var invalidReset = new Error(ErrorCodes.Validation,
+            "The reset link is invalid or has expired, or the new password does not meet the password requirements.");
+        var user = await userManager.FindByEmailAsync(dto.Email.Trim());
+        if (user is null) return Result.BadRequest(invalidReset);
+
+        var result = await userManager.ResetPasswordAsync(user, dto.Token, dto.NewPassword);
+        if (!result.Succeeded)
+            return Result.BadRequest(invalidReset);
+
+        // Identity persists the new password and security stamp together. That stamp
+        // invalidates issued reset tokens, access tokens and refresh sessions.
+        return Result.Success();
     }
 
     private static Result AccountChangeResult(IdentityResult result) =>

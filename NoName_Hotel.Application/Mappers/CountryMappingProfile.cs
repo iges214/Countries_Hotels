@@ -9,7 +9,8 @@ namespace NoName_Hotel.Application.Mappers
         public CountryMappingProfile()
         {
             CreateMap<Country, GetCountryDto>()
-                .ForMember(d => d.Id, opt => opt.MapFrom(s=> s.CountryId));
+                .ForMember(d => d.Id, opt => opt.MapFrom(s=> s.CountryId))
+                .ForMember(d => d.Hotels, opt => opt.MapFrom(s => s.Hotels.Where(h => h.IsActive)));
             CreateMap<Country, GetCountriesDto>()
                 .ForMember(d => d.Id, opt => opt.MapFrom(s => s.CountryId));
             CreateMap<CreateCountryDto, Country>();

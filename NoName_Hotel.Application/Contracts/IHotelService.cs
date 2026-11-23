@@ -13,8 +13,9 @@ namespace NoName_Hotel.Application.Contracts
         Task<bool> HotelExistsAsync(int id);
         Task<bool> HotelExistsAsync(string name, int countryId);
         Task<Result<PageResult<GetHotelDto>>> GetHotelsAsync(
-            PaginationParameters paginationParameters, HotelFilterParameters hotelFilterParameters);
-        Task<Result<GetHotelDto>> GetHotelAsync(int id);
+            PaginationParameters paginationParameters, HotelFilterParameters hotelFilterParameters,
+            bool includeInactive = false, string? administratorId = null);
+        Task<Result<GetHotelDto>> GetHotelAsync(int id, bool includeInactive = false);
         Task<Result<GetHotelDto>> GetDefaultBranchAsync();
         Task<Result> SetDefaultBranchAsync(int id);
         Task<Result> SetBranchActiveAsync(int id, bool isActive);

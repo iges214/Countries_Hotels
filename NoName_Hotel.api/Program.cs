@@ -27,7 +27,7 @@ using NoName_Hotel.Domain.Entities.Models;
 using Serilog;
 using Serilog.Events;
 using System.Text;
-using System.Threading.RateLimiting;
+using NoName_Hotel.api.RateLimiting;
 
 
 Log.Logger = new LoggerConfiguration()
@@ -144,8 +144,6 @@ try
 
     builder.Services.AddAuthorization();
 
-    //IG>eloosandra123
-
     builder.Services.AddScoped<ICountriesService, CountriesService>();
     builder.Services.AddScoped<IHotelService, HotelService>();
     builder.Services.AddScoped<IUserServices, UserServices>();
@@ -161,7 +159,8 @@ try
     builder.Services.AddScoped<CatalogCacheInvalidationFilter>();
 
     builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
-    builder.Services.AddProblemDetails();
+    builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
+        context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier);
 
 
     //builder.Services.AddAutoMapper(cfg => { }, Assembly.GetExecutingAssembly());
@@ -227,76 +226,7 @@ try
         }, excludeDefaultPolicy: true);
     });
 
-    //RATE LIMITER
-    builder.Services.AddRateLimiter(options =>
-    {
-        options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
-            {
-                Window = TimeSpan.FromMinutes(1), PermitLimit = 5, QueueLimit = 0
-            }));
-        options.AddPolicy("contact", context => RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
-            {
-                Window = TimeSpan.FromMinutes(1), PermitLimit = 5, QueueLimit = 0
-            }));
-        options.AddFixedWindowLimiter("fixed", opt =>
-        {
-            opt.Window = TimeSpan.FromMinutes(5);
-            opt.PermitLimit = 10;
-            opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-            opt.QueueLimit = 10;
-        });
-
-        options.AddPolicy("perUser", context =>
-        {
-            var userName = context.User?.Identity?.Name ?? "anonymous";
-
-            return RateLimitPartition.GetSlidingWindowLimiter(userName, _ => new SlidingWindowRateLimiterOptions
-            {
-                Window = TimeSpan.FromMinutes(1),
-                PermitLimit = 50,
-                SegmentsPerWindow = 5,
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 10
-            });
-        });
-
-        //global limiter
-        options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-        {
-            var ipAddress = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-
-            return RateLimitPartition.GetFixedWindowLimiter(ipAddress, _ => new FixedWindowRateLimiterOptions
-            {
-                Window = TimeSpan.FromMinutes(1),
-                PermitLimit = 200,
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 10
-            });
-        });
-
-        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-
-        options.OnRejected = async (context, CancellationToken) =>
-        {
-            if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
-            {
-                context.HttpContext.Response.Headers.RetryAfter = retryAfter.TotalSeconds.ToString();
-            }
-
-            context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-            context.HttpContext.Response.ContentType = "application/json";
-
-            await context.HttpContext.Response.WriteAsJsonAsync(new
-            {
-                error = "Too many request",
-                message = "Rate limit exceeeded, please try again later",
-                retryAfter = retryAfter.TotalSeconds
-            }, cancellationToken: CancellationToken);
-
-        };
-    });
+    builder.Services.AddHotelRateLimiting();
 
     builder.Services.AddHealthChecks()
         .AddCheck("self", () => HealthCheckResult.Healthy("Application is running"), tags: ["api"])
@@ -363,13 +293,14 @@ try
 
         opt.EnrichDiagnosticContext = (dianosticContext, HttpContext) =>
         {
-            dianosticContext.Set("UserName", HttpContext.User?.Identity?.Name ?? "anonymouse");
+            dianosticContext.Set("Subject", RequestIdentity.Subject(HttpContext) ?? "anonymous");
 
             dianosticContext.Set("RemoteIP", HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+            dianosticContext.Set("TraceId", HttpContext.TraceIdentifier);
 
             if (HttpContext.User?.Identity?.IsAuthenticated == true)
             {
-                dianosticContext.Set("UserId", HttpContext.User.FindFirst("sub")?.Value ?? "unknown");
+                dianosticContext.Set("UserId", RequestIdentity.Subject(HttpContext) ?? "unknown");
             }
         };
     });
@@ -451,6 +382,7 @@ try
 
     app.UseAuthentication();
 
+    app.UsePrivateApiResponses();
     app.UseRateLimiter();
 
     app.UseAuthorization();

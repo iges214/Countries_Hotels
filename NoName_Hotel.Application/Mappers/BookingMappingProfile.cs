@@ -17,9 +17,13 @@ public class BookingMappingProfile : Profile
             .ForMember(d => d.TimeZoneId, o => o.MapFrom(s => s.Hotel != null ? s.Hotel.TimeZoneId : "Africa/Lagos"));
         CreateMap<CreateBookingDto, Booking>(MemberList.Source)
             .ForMember(d => d.Guest, o => o.MapFrom(s => s.Guests))
+            .ForSourceMember(s => s.RequestId, o => o.DoNotValidate())
+            .ForSourceMember(s => s.ExpectedTotal, o => o.DoNotValidate())
             .ForSourceMember(s => s.RoomIds, o => o.DoNotValidate());
         CreateMap<UpdateBookingDto, Booking>(MemberList.Source)
             .ForMember(d => d.Guest, o => o.MapFrom(s => s.Guests))
+            .ForMember(d => d.RowVersion, o => o.Ignore())
+            .ForSourceMember(s => s.RowVersion, o => o.DoNotValidate())
             .ForSourceMember(s => s.RoomIds, o => o.DoNotValidate());
     }
 }

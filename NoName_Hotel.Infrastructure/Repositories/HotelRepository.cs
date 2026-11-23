@@ -15,22 +15,33 @@ public sealed class HotelRepository(NoName_hotel_DbContext db) : IHotelRepositor
     public void Attach<T>(T entity) where T : class => db.Attach(entity);
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => db.SaveChangesAsync(cancellationToken);
 
-    public Task<T> ExecuteSerializableAsync<T>(Func<Task<T>> action) =>
-        db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+    public Task<T> ExecuteSerializableAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken = default) =>
+        db.Database.CreateExecutionStrategy().ExecuteAsync(async token =>
         {
             db.ChangeTracker.Clear();
-            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            token.ThrowIfCancellationRequested();
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, token);
             var result = await action();
-            await transaction.CommitAsync();
+            await transaction.CommitAsync(token);
             return result;
-        });
+        }, cancellationToken);
 
-    public Task<Hotel?> LockBranchAsync(int hotelId)
+    public Task<Hotel?> LockBranchAsync(int hotelId, CancellationToken cancellationToken = default)
     {
         // Room publishing, booking, cancellation and inventory edits acquire this same branch lock.
         var query = db.Database.IsSqlServer()
             ? db.Hotels.FromSqlInterpolated($"SELECT * FROM [Hotels] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {hotelId}")
             : db.Hotels.AsQueryable();
-        return query.AsTracking().FirstOrDefaultAsync(h => h.Id == hotelId);
+        return query.AsTracking().FirstOrDefaultAsync(h => h.Id == hotelId, cancellationToken);
+    }
+
+    public async Task<bool> LockBookingUserAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        // Lock the account before the branch so the same request key cannot race
+        // across branches. The unique database index remains the final backstop.
+        var query = db.Database.IsSqlServer()
+            ? db.Users.FromSqlInterpolated($"SELECT * FROM [AspNetUsers] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {userId}")
+            : db.Users.Where(user => user.Id == userId);
+        return await query.Select(user => user.Id).FirstOrDefaultAsync(cancellationToken) is not null;
     }
 }

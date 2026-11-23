@@ -300,8 +300,16 @@ namespace NoName_Hotel.Infrastructure.Migrations
                     b.Property<DateOnly>("CheckOut")
                         .HasColumnType("date");
 
+                    b.Property<Guid?>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreateAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("CreateRequestHash")
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(64)");
 
                     b.Property<int>("Guest")
                         .HasColumnType("int");
@@ -344,7 +352,14 @@ namespace NoName_Hotel.Infrastructure.Migrations
 
                     b.HasIndex("CheckIn", "CheckOut");
 
-                    b.ToTable("Bookings");
+                    b.HasIndex("UserId", "ClientRequestId")
+                        .IsUnique()
+                        .HasFilter("[ClientRequestId] IS NOT NULL");
+
+                    b.ToTable("Bookings", t =>
+                        {
+                            t.HasCheckConstraint("CK_Bookings_RequestIdentity", "([ClientRequestId] IS NULL AND [CreateRequestHash] IS NULL) OR ([ClientRequestId] IS NOT NULL AND [CreateRequestHash] IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("NoName_Hotel.Domain.Entities.Models.BookingRoom", b =>

@@ -1,12 +1,13 @@
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.Extensions.Primitives;
 using System.Security.Claims;
+using NoName_Hotel.api.RateLimiting;
 namespace NoName_Hotel.api.Controllers.CachePolicies;
 internal sealed class AuthenticatedUserCachingPolicy : IOutputCachePolicy
 {
     public ValueTask CacheRequestAsync(OutputCacheContext context, CancellationToken cancellationToken)
     {
-        var userId = context.HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userId = RequestIdentity.Subject(context.HttpContext);
         var cache = (HttpMethods.IsGet(context.HttpContext.Request.Method) ||
             HttpMethods.IsHead(context.HttpContext.Request.Method)) &&
             context.HttpContext.User.Identity?.IsAuthenticated == true && !string.IsNullOrWhiteSpace(userId);

@@ -28,9 +28,9 @@ public sealed class AccountController(IUserServices users, IBookingService booki
         ToActionResult(await users.ChangePasswordAsync(dto));
 
     [HttpGet("bookings"), EnableRateLimiting("perUser")]
-    public async Task<ActionResult<PageResult<GetBookingDto>>> GetBookings([FromQuery] PaginationParameters page)
+    public async Task<ActionResult<PageResult<GetBookingDto>>> GetBookings([FromQuery] PaginationParameters page, CancellationToken cancellationToken)
     {
         Response.Headers.CacheControl = "no-store";
-        return ToActionResult(await bookings.GetUserBookingsAsync(page));
+        return ToActionResult(await bookings.GetUserBookingsAsync(page, cancellationToken));
     }
 }

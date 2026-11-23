@@ -22,6 +22,8 @@ namespace NoName_Hotel.Domain.Entities.Models
         public ICollection<BookingRoom> RoomReservations { get; set; } = [];
 
         public byte[] RowVersion { get; set; } = [];
+        public Guid? ClientRequestId { get; set; }
+        public string? CreateRequestHash { get; set; }
 
         public decimal Totalprice { get; set; }
 

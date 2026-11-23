@@ -4,6 +4,8 @@ using NoName_Hotel.Application.Contracts.AuthContracts;
 using NoName_Hotel.Common.Constants;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace NoName_Hotel.api.Handlers
 {
@@ -37,6 +39,7 @@ namespace NoName_Hotel.api.Handlers
                 new(ClaimTypes.NameIdentifier, "apiKey"),
                 new(ClaimTypes.Name, "ApiKeyClient")
                 };
+            claims.Add(new("client_id", Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(apikey)))));
 
 
             var Identity = new ClaimsIdentity(claims, Scheme.Name);

@@ -10,6 +10,7 @@ public interface IHotelRepository
     void Remove<T>(T entity) where T : class;
     void Attach<T>(T entity) where T : class;
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
-    Task<T> ExecuteSerializableAsync<T>(Func<Task<T>> action);
-    Task<Hotel?> LockBranchAsync(int hotelId);
+    Task<T> ExecuteSerializableAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken = default);
+    Task<Hotel?> LockBranchAsync(int hotelId, CancellationToken cancellationToken = default);
+    Task<bool> LockBookingUserAsync(string userId, CancellationToken cancellationToken = default);
 }

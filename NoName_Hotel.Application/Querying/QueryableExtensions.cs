@@ -6,13 +6,13 @@ namespace NoName_Hotel.Application.Querying;
     public static class QueryableExtensions
     {
     public static async Task<PageResult<T>> ToPageResultAsync<T>(
-        this IQueryable<T> source, PaginationParameters paginationParameters)
+        this IQueryable<T> source, PaginationParameters paginationParameters, CancellationToken cancellationToken = default)
     {
-        var totalCount = await source.CountAsync();
+        var totalCount = await source.CountAsync(cancellationToken);
         var items = await source
             .Skip((paginationParameters.PageNumber - 1) * paginationParameters.PageSize)
             .Take(paginationParameters.PageSize)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         var totalPages = (int)Math.Ceiling(totalCount / (double)paginationParameters.PageSize);
 
